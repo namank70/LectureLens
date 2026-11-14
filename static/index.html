@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f8f3">
+  <meta name="theme-color" content="#f3f5ed">
   <meta name="description" content="Turn your recorded explanation and source notes into a visual lesson with LectureLens and AdaL Video Producer.">
   <title>LectureLens · Lesson Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,6 +32,16 @@
         <a class="button primary" href="#studio">Create a lesson <span aria-hidden="true">↓</span></a>
       </div>
       <div class="workflow" aria-label="Lesson workflow">
+        <div class="workflow-scene" aria-hidden="true">
+          <span class="orbit orbit-one"></span>
+          <span class="orbit orbit-two"></span>
+          <span class="scene-card scene-card-back"></span>
+          <span class="scene-card scene-card-front">
+            <span class="scene-spark"></span>
+            <span class="scene-play"></span>
+            <span class="scene-caption"></span>
+          </span>
+        </div>
         <div class="workflow-inputs">
           <div class="workflow-item"><span class="document-icon" aria-hidden="true"></span><span>Source notes</span></div>
           <div class="workflow-item"><span class="camera-icon" aria-hidden="true"></span><span>Camera recording</span></div>
@@ -54,7 +64,7 @@
             <div class="upload-icon" aria-hidden="true"><span class="document-icon"></span></div>
             <div class="upload-main">
               <label class="upload-label" id="source-notes-label" for="pdf-input">Source notes</label>
-              <p id="pdf-detail">Add a PDF with your topic’s key points, references, or illustrations.</p>
+              <p id="pdf-detail">Drop a PDF with your key points, references, or illustrations.</p>
               <div class="upload-actions">
                 <input class="visually-hidden file-input" type="file" id="pdf-input" name="pdf" accept="application/pdf,.pdf" aria-labelledby="source-notes-label" aria-describedby="pdf-detail">
                 <label for="pdf-input" class="button quiet">Choose PDF</label>
@@ -65,7 +75,7 @@
             <div class="upload-icon" aria-hidden="true"><span class="camera-icon"></span></div>
             <div class="upload-main">
               <label class="upload-label" id="camera-recording-label" for="video-input">Camera recording</label>
-              <p id="video-detail">Add a short landscape recording with clear narration. H.264/AAC MP4 works best for browser playback.</p>
+              <p id="video-detail">Drop a short recording with clear narration. MP4 works best for playback.</p>
               <div class="upload-actions">
                 <input class="visually-hidden file-input" type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" aria-labelledby="camera-recording-label" aria-describedby="video-detail">
                 <label for="video-input" class="button quiet">Choose video</label>

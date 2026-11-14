@@ -12,6 +12,8 @@ const renderButton = byId("render-preview");
 const sourceVideo = byId("source-video");
 const outputVideo = byId("output-video");
 const chapterList = byId("chapter-list");
+const notesCard = pdfInput.closest(".upload-card");
+const recordingCard = videoInput.closest(".upload-card");
 const recordingHint = byId("video-detail").textContent;
 const notesHint = byId("pdf-detail").textContent;
 
@@ -169,16 +171,30 @@ function clearProject() {
   byId("production").hidden = true;
   showStatus("copy-status", "");
   byId("storyboard").hidden = true;
-  showStatus("project-status", "Prepare the project to use the new inputs.");
+}
+
+function showInputStatus() {
+  const hasNotes = usingSample || pdfInput.files.length;
+  const hasRecording = videoInput.files.length;
+  let message = "Add both files to prepare your AdaL prompt.";
+  if (hasNotes && hasRecording) {
+    message = "Both files are ready. Prepare your lesson project.";
+  } else if (hasNotes) {
+    message = "Choose a presenter recording to continue.";
+  } else if (hasRecording) {
+    message = "Choose a source PDF to continue.";
+  }
+  showStatus("project-status", message);
 }
 
 sampleButton.addEventListener("click", () => {
   if (!sample) return;
   usingSample = true;
   pdfInput.value = "";
+  notesCard.classList.add("is-ready");
   byId("pdf-detail").textContent = "Seven Wonders of the Ancient World · example notes selected";
   clearProject();
-  showStatus("project-status", "Example notes selected. Choose a presenter recording to continue.");
+  showInputStatus();
   byId("studio").scrollIntoView({ block: "start" });
 });
 
@@ -192,14 +208,17 @@ sampleStoryboardButton.addEventListener("click", () => {
 pdfInput.addEventListener("change", () => {
   if (!pdfInput.files.length && usingSample) return;
   usingSample = false;
+  notesCard.classList.toggle("is-ready", Boolean(pdfInput.files.length));
   byId("pdf-detail").textContent = pdfInput.files[0]?.name || notesHint;
   clearProject();
   byId("storyboard").hidden = true;
+  showInputStatus();
 });
 
 videoInput.addEventListener("change", () => {
   if (sourceObjectUrl) URL.revokeObjectURL(sourceObjectUrl);
   const recording = videoInput.files[0];
+  recordingCard.classList.toggle("is-ready", Boolean(recording));
   sourceObjectUrl = recording ? URL.createObjectURL(recording) : null;
   showStatus("source-playback-status", "");
   if (sourceObjectUrl) {
@@ -211,12 +230,72 @@ videoInput.addEventListener("change", () => {
   byId("video-detail").textContent = recording?.name || recordingHint;
   byId("recording-preview").hidden = !recording;
   clearProject();
+  showInputStatus();
 });
 
 sourceVideo.addEventListener("error", () => {
   if (!sourceObjectUrl) return;
   byId("recording-preview").open = true;
   showStatus("source-playback-status", "This browser could not play the recording. Use an H.264/AAC MP4 to preview it here.", true);
+});
+
+function enableDrop(card, input) {
+  const allowedExtensions = input.accept.split(",").filter((type) => type.startsWith("."));
+  let dragDepth = 0;
+  const hasFiles = (event) => event.dataTransfer?.types.includes("Files");
+
+  card.addEventListener("dragenter", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    if (!input.disabled) {
+      dragDepth++;
+      card.classList.add("is-dragging");
+    }
+  });
+  card.addEventListener("dragover", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = input.disabled ? "none" : "copy";
+  });
+  card.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) card.classList.remove("is-dragging");
+  });
+  card.addEventListener("drop", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    card.classList.remove("is-dragging");
+    if (input.disabled) return;
+    const files = event.dataTransfer.files;
+    const file = files[0];
+    if (files.length !== 1 || !allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+      showStatus("project-status", input === pdfInput
+        ? "Drop one PDF into Source notes."
+        : "Drop one MP4, MOV, or WebM into Camera recording.", true);
+      return;
+    }
+    input.files = files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+enableDrop(notesCard, pdfInput);
+enableDrop(recordingCard, videoInput);
+
+const workflowScene = document.querySelector(".workflow-scene");
+const sceneInteraction = window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
+workflowScene.addEventListener("pointermove", (event) => {
+  if (!sceneInteraction.matches || event.pointerType === "touch") return;
+  const rect = workflowScene.getBoundingClientRect();
+  const horizontal = (event.clientX - rect.left) / rect.width - 0.5;
+  const vertical = (event.clientY - rect.top) / rect.height - 0.5;
+  workflowScene.style.setProperty("--tilt-x", `${vertical * -12}deg`);
+  workflowScene.style.setProperty("--tilt-y", `${horizontal * 16}deg`);
+});
+workflowScene.addEventListener("pointerleave", () => {
+  workflowScene.style.removeProperty("--tilt-x");
+  workflowScene.style.removeProperty("--tilt-y");
 });
 
 byId("previous-chapter").addEventListener("click", () => selectChapter(chapterIndex - 1));
