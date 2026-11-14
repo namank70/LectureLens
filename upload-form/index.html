@@ -10,9 +10,10 @@
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
            background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-    form { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--line);
-           border-radius: 12px; padding: 28px; display: grid; gap: 20px; }
+    main { width: 100%; max-width: 460px; display: grid; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; display: grid; gap: 20px; }
     h1 { margin: 0; font-size: 1.4rem; }
+    h2 { margin: 0; font-size: 1.1rem; }
     p.hint { margin: -12px 0 0; color: var(--muted); font-size: .9rem; }
     label { display: grid; gap: 6px; font-weight: 600; }
     label small { font-weight: 400; color: var(--muted); }
@@ -21,35 +22,66 @@
              background: var(--accent); color: #fff; cursor: pointer; }
     button:disabled { opacity: .6; cursor: wait; }
     progress { width: 100%; height: 10px; }
-    #status { margin: 0; font-size: .95rem; min-height: 1.5em; overflow-wrap: anywhere; }
-    #status.ok { color: var(--ok); } #status.err { color: var(--err); }
+    .status { margin: 0; font-size: .95rem; min-height: 1.5em; overflow-wrap: anywhere; }
+    .ok { color: var(--ok); } .err { color: var(--err); }
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; min-width: 0; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+    .row button { padding: 10px 14px; }
+    .badge { justify-self: start; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: #ece6d6; }
+    .badge.done { background: #dcebd9; color: var(--ok); } .badge.failed { background: #f3dcd7; color: var(--err); }
+    video { width: 100%; border-radius: 8px; background: #000; }
+    a.download { font-weight: 600; color: var(--accent); }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <form id="upload-form" novalidate>
-    <h1>Upload lesson files</h1>
-    <p class="hint">Add your recording and your notes, then submit. The lesson is queued once both files are uploaded.</p>
+  <main>
+    <form id="upload-form" class="card" novalidate>
+      <h1>Upload lesson files</h1>
+      <p class="hint">Add your recording and your notes, then submit. The lesson is queued once both files are uploaded.</p>
 
-    <label>
-      Video <small>MP4 only</small>
-      <input type="file" id="video" name="video" accept="video/mp4,.mp4" required>
-    </label>
+      <label>
+        Video <small>MP4 only</small>
+        <input type="file" id="video" name="video" accept="video/mp4,.mp4" required>
+      </label>
 
-    <label>
-      Notes <small>PDF only</small>
-      <input type="file" id="pdf" name="pdf" accept="application/pdf,.pdf" required>
-    </label>
+      <label>
+        Notes <small>PDF only</small>
+        <input type="file" id="pdf" name="pdf" accept="application/pdf,.pdf" required>
+      </label>
 
-    <button type="submit" id="submit">Submit</button>
-    <progress id="progress" max="100" value="0" hidden></progress>
-    <p id="status" role="status" aria-live="polite"></p>
-  </form>
+      <button type="submit" id="submit">Submit</button>
+      <progress id="progress" max="100" value="0" hidden></progress>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section id="job" class="card" aria-live="polite">
+      <h2>Lesson status</h2>
+      <div class="row">
+        <input id="job-id" placeholder="Job ID" autocomplete="off" spellcheck="false" aria-label="Job ID">
+        <button type="button" id="check">Check</button>
+      </div>
+      <span id="job-badge" class="badge" hidden></span>
+      <p id="job-status" class="status"></p>
+      <video id="result-video" controls playsinline hidden></video>
+      <a id="result-link" class="download" target="_blank" rel="noopener" hidden>Open / download video</a>
+    </section>
+  </main>
 
   <script>
+    // ---- Configuration -------------------------------------------------------------------
     // Upload API (backend team, AWS us-east-2). If calls fail to resolve, check the stack's ApiUrl output.
     const API = "https://ugm369dj9a.execute-api.us-east-2.amazonaws.com";
 
+    // TODO: replace with the real status endpoint from the backend team. "{job_id}" is filled in.
+    // Assumed response: { job_id, status: "waiting_for_files"|"queued"|"processing"|"done"|"failed",
+    //                     output_url?: "<link to finished MP4>", error?: "<reason>" }
+    const JOB_STATUS_URL = "https://example.com/jobs/{job_id}";
+
+    const POLL_EVERY_MS = 5000;           // how often to check while the lesson is being made
+    const POLL_TIMEOUT_MS = 30 * 60 * 1000; // stop polling after 30 min (matches the queue timeout)
+
+    // ---- Upload ------------------------------------------------------------------------
     const form = document.getElementById("upload-form");
     const videoInput = document.getElementById("video");
     const pdfInput = document.getElementById("pdf");
@@ -57,7 +89,7 @@
     const bar = document.getElementById("progress");
     const statusEl = document.getElementById("status");
 
-    function setStatus(text, kind = "") { statusEl.textContent = text; statusEl.className = kind; }
+    function setStatus(text, kind = "") { statusEl.textContent = text; statusEl.className = "status " + kind; }
 
     // Steps 1 and 3: ask the API for a pre-signed S3 upload link.
     async function getUploadLink(path) {
@@ -96,8 +128,7 @@
 
       button.disabled = true;
       bar.hidden = false; bar.value = 0;
-      // Video counts for 90% of the bar, the PDF for the last 10%.
-      const weight = { video: 90, pdf: 10 };
+      const weight = { video: 90, pdf: 10 }; // video is 90% of the bar, PDF the last 10%
       try {
         setStatus("Preparing video upload…");
         const v = await getUploadLink("/uploads/video");
@@ -115,14 +146,122 @@
           (p) => { bar.value = weight.video + p * weight.pdf; });
 
         bar.value = 100;
-        setStatus(`Done! Your lesson is queued. Job ID: ${v.job_id}`, "ok");
+        setStatus(`Uploaded! Job ID: ${v.job_id}`, "ok");
         form.reset();
+        watchJob(v.job_id);
       } catch (err) {
         setStatus(err.message || "Something went wrong. Please try again.", "err");
       } finally {
         button.disabled = false;
       }
     });
+
+    // ---- Job status (GET) ----------------------------------------------------------------
+    const jobIdInput = document.getElementById("job-id");
+    const checkBtn = document.getElementById("check");
+    const badge = document.getElementById("job-badge");
+    const jobStatusEl = document.getElementById("job-status");
+    const resultVideo = document.getElementById("result-video");
+    const resultLink = document.getElementById("result-link");
+
+    const LABELS = {
+      waiting_for_files: "Waiting for files", queued: "Queued", processing: "Making your lesson",
+      done: "Ready", failed: "Failed", unknown: "Checking",
+    };
+
+    // Map whatever the backend returns onto our known states, so small naming differences don't break the page.
+    function normalizeJob(data) {
+      const raw = String(data.status || data.state || "").toLowerCase();
+      const url = data.output_url || data.video_url || data.download_url || data.url || null;
+      let status = "unknown";
+      if (/fail|error/.test(raw)) status = "failed";
+      else if (/done|complete|success|finished|ready/.test(raw) || (url && !raw)) status = "done";
+      else if (/process|running|render|progress|working/.test(raw)) status = "processing";
+      else if (/queue|pending/.test(raw)) status = "queued";
+      else if (/wait|upload/.test(raw)) status = "waiting_for_files";
+      return { status, url, error: data.error || data.message || null };
+    }
+
+    async function fetchJob(jobId) {
+      const res = await fetch(JOB_STATUS_URL.replace("{job_id}", encodeURIComponent(jobId)));
+      if (res.status === 404) return { status: "not_found" };
+      if (!res.ok) throw new Error(`Status check failed (${res.status}).`);
+      return normalizeJob(await res.json());
+    }
+
+    function showJob(job) {
+      badge.hidden = false;
+      badge.textContent = LABELS[job.status] || job.status;
+      badge.className = "badge " + (job.status === "done" ? "done" : job.status === "failed" ? "failed" : "");
+    }
+
+    function showVideo(url) {
+      resultVideo.src = url; resultVideo.hidden = false;
+      resultLink.href = url; resultLink.hidden = false;
+    }
+
+    function resetResult() {
+      badge.hidden = true; jobStatusEl.textContent = ""; jobStatusEl.className = "status";
+      resultVideo.hidden = true; resultVideo.removeAttribute("src"); resultLink.hidden = true;
+    }
+
+    let pollTimer = null;
+    let pollRun = 0; // bumps whenever a new job is watched, so an old loop stops itself
+
+    async function watchJob(jobId) {
+      jobId = jobId.trim();
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(jobId)) {
+        resetResult(); jobStatusEl.textContent = "That doesn't look like a valid job ID."; jobStatusEl.className = "status err";
+        return;
+      }
+      clearTimeout(pollTimer);
+      const run = ++pollRun;
+      const started = Date.now();
+      jobIdInput.value = jobId;
+      resetResult();
+      jobStatusEl.textContent = "Checking status…";
+
+      const tick = async () => {
+        if (run !== pollRun) return;
+        try {
+          const job = await fetchJob(jobId);
+          if (run !== pollRun) return;
+          if (job.status === "not_found") {
+            badge.hidden = true;
+            jobStatusEl.textContent = "Job not found. Check the ID, or the status service may not be available yet.";
+            jobStatusEl.className = "status err";
+            return;
+          }
+          showJob(job);
+          if (job.status === "done") {
+            if (job.url) { showVideo(job.url); jobStatusEl.textContent = "Your lesson video is ready."; jobStatusEl.className = "status ok"; }
+            else { jobStatusEl.textContent = "The lesson is finished, but no video link was returned."; jobStatusEl.className = "status err"; }
+            return;
+          }
+          if (job.status === "failed") {
+            jobStatusEl.textContent = job.error ? `Processing failed: ${job.error}` : "Processing failed.";
+            jobStatusEl.className = "status err";
+            return;
+          }
+          if (Date.now() - started > POLL_TIMEOUT_MS) {
+            jobStatusEl.textContent = "Still not finished after 30 minutes. Press Check to look again later.";
+            return;
+          }
+          jobStatusEl.textContent = "This can take a few minutes. The page checks automatically.";
+          jobStatusEl.className = "status";
+          pollTimer = setTimeout(tick, POLL_EVERY_MS);
+        } catch (err) {
+          if (run !== pollRun) return;
+          jobStatusEl.textContent = (err.message || "Could not reach the status service.") + " Retrying…";
+          jobStatusEl.className = "status err";
+          pollTimer = setTimeout(tick, POLL_EVERY_MS * 2);
+        }
+      };
+      tick();
+    }
+
+    checkBtn.addEventListener("click", () => watchJob(jobIdInput.value));
+    jobIdInput.addEventListener("keydown", (e) => { if (e.key === "Enter") watchJob(jobIdInput.value); });
   </script>
 </body>
 </html>
