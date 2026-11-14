@@ -2,6 +2,86 @@
 
 LectureLens turns a source PDF and a camera recording into a narrated lesson. When the AdaL CLI is configured, the studio can start generation and play the finished video. The optional Seven Wonders example also supports a local preview with the presenter's original audio.
 
+## Architecture
+
+A presenter gives LectureLens two files: a camera recording and a notes PDF. [AdaL](https://docs.sylph.ai/) Video Producer turns them into a narrated lesson video that keeps the presenter's own voice. AdaL runs on one signed-in computer, so everything else exists to get the two files to that computer and the finished video back to the browser.
+
+```mermaid
+flowchart LR
+    Upload["Upload page<br/>static/upload.html"]
+    Studio["Studio<br/>static/index.html"]
+
+    subgraph AWS["AWS (us-east-2)"]
+        Cloud["API Gateway, Lambda,<br/>S3 bucket, SQS queue"]
+    end
+
+    subgraph AdaLPC["AdaL computer"]
+        Queue["Queue server<br/>aws/server.js :8080"]
+        StudioSrv["Studio server<br/>server.js :3000"]
+        Gen["adal_generation.js"]
+        CLI["AdaL CLI<br/>Video Producer"]
+    end
+
+    Upload -- "files" --> Cloud
+    Cloud -- "jobs" --> Queue
+    Queue -- "finished video" --> Cloud
+    Studio -- "files" --> StudioSrv
+    Queue --> Gen
+    StudioSrv --> Gen
+    Gen --> CLI
+```
+
+The cloud upload path, step by step:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Upload page
+    participant A as API Gateway + Lambda
+    participant S as S3 bucket
+    participant Q as SQS queue
+    participant W as Queue server (AdaL computer)
+    participant D as AdaL CLI
+
+    P->>A: Ask for upload links
+    A-->>P: Presigned S3 links and a job ID
+    P->>S: PUT recording and notes PDF
+    S->>Q: Both files present, a Lambda queues one job
+    W->>Q: Long poll
+    Q-->>W: Job message
+    W->>S: Download the two files
+    W->>D: Generate the lesson (one job at a time)
+    D-->>W: Verified MP4
+    W->>S: Upload output.mp4
+    W->>Q: Delete the message
+    loop Until done or failed
+        P->>W: GET /jobs/{job_id}/output
+        W-->>P: notfound, pending, failed, or done with a video link
+    end
+    P->>S: Play the video from the one-hour link
+```
+
+There are two ways in, and both end at the same generation code (`adal_generation.js`):
+
+- **Cloud upload path (second diagram).** The upload page sends the files straight to S3 using short-lived upload links, so large videos never pass through our own servers. When both files have arrived, a Lambda puts one job on an SQS queue. The queue server on the AdaL computer picks the job up, runs AdaL, and uploads the finished MP4 back to S3. The page polls the queue server for status and plays the result from a one-hour presigned link. Details and the API are in [aws/README.md](aws/README.md).
+- **Local studio path.** The studio is served by `server.js` on the AdaL computer itself. It uploads the files directly to that server, starts the same AdaL generation, and can also render a quick local preview (`video_render.py`) or import an MP4 exported from AdaL by hand.
+
+Design choices worth knowing:
+
+- **The queue decouples the browser from AdaL.** AdaL generation takes minutes. The upload returns immediately, jobs wait in SQS, and the queue server runs them one at a time so two generations never compete for the same AdaL session.
+- **A job is removed from the queue only after it finishes or fails**, so a crash mid-job lets SQS deliver it again. Failures are reported through the status endpoint and written to `error.txt` beside the inputs.
+- **Job status is held in memory for now.** Restarting the queue server forgets earlier jobs, although their videos stay in S3.
+- **The queue server listens on `127.0.0.1:8080`.** The upload page has to be opened on the AdaL computer, or reach it through a tunnel, to see job status.
+
+| Piece | Where | Role |
+| --- | --- | --- |
+| Studio and upload page | `static/` | Browser UI |
+| Studio server | `server.js` | Local uploads, local preview, AdaL generation and import |
+| Upload stack | `aws/template.yaml` | API Gateway, two Lambdas, S3 bucket, SQS queue |
+| Queue server | `aws/server.js` | Consumes SQS, runs AdaL, serves job status |
+| Generation | `adal_generation.js` | Runs the AdaL CLI headless and verifies the MP4 |
+| Prompt brief | `ADAL-VIDEO-PROMPT.md` | Creative brief handed to AdaL with the two files |
+
 ## Branches
 
 Branch from `main`. Push only your own branch; D combines them on `integration/demo`.

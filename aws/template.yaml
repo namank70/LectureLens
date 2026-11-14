@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: LectureLens upload APIs - API Gateway, S3, SQS (created 2026-11-13)
+Resources:
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: lecturelens-jobs-20261113
+      VisibilityTimeout: 1800
+  Bucket:
+    Type: AWS::S3::Bucket
+    DependsOn: S3Invoke
+    Properties:
+      BucketName: !Sub lecturelens-uploads-20261113-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [PUT, GET]
+            AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt QueueFn.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: jobs/
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lecturelens-lambda-20261113
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: lecturelens
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub arn:aws:s3:::lecturelens-uploads-20261113-${AWS::AccountId}/jobs/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::lecturelens-uploads-20261113-${AWS::AccountId}
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt Queue.Arn
+  PresignFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lecturelens-presign-20261113
+      Runtime: python3.13
+      Handler: index.handler
+      Role: !GetAtt Role.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          BUCKET: !Sub lecturelens-uploads-20261113-${AWS::AccountId}
+      Code:
+        ZipFile: |
+          import json, os, re, uuid
+          import boto3
+          from botocore.config import Config
+          R = os.environ["AWS_REGION"]
+          B = os.environ["BUCKET"]
+          s3 = boto3.client("s3", region_name=R, endpoint_url=f"https://s3.{R}.amazonaws.com",
+                            config=Config(signature_version="s3v4"))
+          NAMES = {"/uploads/video": ("recording.mp4", "video/mp4"),
+                   "/uploads/notes": ("notes.pdf", "application/pdf")}
+          def handler(event, context):
+              name, ctype = NAMES[event["rawPath"]]
+              job = (event.get("queryStringParameters") or {}).get("job_id") or uuid.uuid4().hex
+              if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job):
+                  return {"statusCode": 400, "body": json.dumps({"error": "bad job_id"})}
+              key = f"jobs/{job}/{name}"
+              url = s3.generate_presigned_url("put_object",
+                  Params={"Bucket": B, "Key": key, "ContentType": ctype}, ExpiresIn=900)
+              return {"statusCode": 200, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"job_id": job, "bucket": B, "key": key,
+                                          "content_type": ctype, "upload_url": url})}
+  QueueFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lecturelens-enqueue-20261113
+      Runtime: python3.13
+      Handler: index.handler
+      Role: !GetAtt Role.Arn
+      Timeout: 15
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref Queue
+      Code:
+        ZipFile: |
+          import json, os
+          import boto3
+          from botocore.exceptions import ClientError
+          s3 = boto3.client("s3")
+          sqs = boto3.client("sqs")
+          def have(b, k):
+              try:
+                  s3.head_object(Bucket=b, Key=k)
+                  return True
+              except ClientError:
+                  return False
+          def handler(event, context):
+              for rec in event["Records"]:
+                  b = rec["s3"]["bucket"]["name"]
+                  parts = rec["s3"]["object"]["key"].split("/")
+                  if len(parts) != 3 or parts[2] not in ("recording.mp4", "notes.pdf"):
+                      continue
+                  p = f"jobs/{parts[1]}"
+                  if not (have(b, f"{p}/recording.mp4") and have(b, f"{p}/notes.pdf")):
+                      continue
+                  try:  # marker makes sure each job is queued once
+                      s3.put_object(Bucket=b, Key=f"{p}/queued.json", Body=b"{}", IfNoneMatch="*")
+                  except ClientError:
+                      continue
+                  sqs.send_message(QueueUrl=os.environ["QUEUE_URL"], MessageBody=json.dumps({
+                      "job_id": parts[1], "bucket": b,
+                      "video_key": f"{p}/recording.mp4", "notes_key": f"{p}/notes.pdf",
+                      "output_key": f"{p}/output.mp4", "error_key": f"{p}/error.txt"}))
+  S3Invoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref QueueFn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:aws:s3:::lecturelens-uploads-20261113-${AWS::AccountId}
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: lecturelens-uploads-20261113
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowMethods: [POST, OPTIONS]
+        AllowHeaders: ['*']
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt PresignFn.Arn
+      PayloadFormatVersion: '2.0'
+  VideoRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: POST /uploads/video
+      Target: !Sub integrations/${Integration}
+  NotesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: POST /uploads/notes
+      Target: !Sub integrations/${Integration}
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref Api
+      StageName: $default
+      AutoDeploy: true
+  ApiInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PresignFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*
+Outputs:
+  ApiUrl:
+    Value: !GetAtt Api.ApiEndpoint
+  BucketName:
+    Value: !Ref Bucket
+  QueueUrl:
+    Value: !Ref Queue
