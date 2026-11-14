@@ -1,0 +1,35 @@
+# Local job data: uploads, previews, imported AdaL exports
+.local/
+
+# Raw footage and finished lesson exports stay out of Git
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.mkv
+*.avi
+# ...except the two supplied model-orbit fixtures
+!sample/models/*.mp4
+
+# Credentials and keys
+.env
+.env.*
+*.pem
+*.key
+*credentials*
+*secret*
+
+# Signed agreements and releases
+*agreement*
+*Agreement*
+signed*
+*-signed*
+*_signed*
+*presenter-release*
+
+# Tooling
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
