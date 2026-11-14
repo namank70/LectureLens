@@ -112,26 +112,26 @@
     // Upload API (backend team, AWS us-east-2). If calls fail to resolve, check the stack's ApiUrl output.
     const API = "https://ugm369dj9a.execute-api.us-east-2.amazonaws.com";
 
-    // TODO: replace with the real status endpoint from the backend team. "{job_id}" is filled in.
-    const JOB_STATUS_URL = "https://example.com/jobs/{job_id}";
+    // LectureLens queue server (aws/server.js), which runs on the computer where AdaL is installed.
+    // Default is 127.0.0.1:8080, so this page must run on that same computer. If the page is opened
+    // anywhere else, replace QUEUE_SERVER with the tunnel or network address of that machine.
+    const QUEUE_SERVER = "http://127.0.0.1:8080";
+    const JOB_STATUS_URL = QUEUE_SERVER + "/jobs/{job_id}/output";
 
-    // TODO: confirm with the backend. Assumed contract for GET JOB_STATUS_URL:
-    //   200 { status: "done", output_url }            -> finished; play the video
-    //   200 { status: "failed", error }               -> finished with an error
-    //   NOT_READY_CODES (e.g. 202) or 200 with a NOT_READY status
-    //       { status: "processing", progress?: 0-100, stage?: "Rendering scenes", eta_seconds? }
-    //                                                 -> AdaL still working; do NOT fetch the video, check again later
-    //   404                                           -> unknown job (ignored briefly right after an upload)
-    //   Optional Retry-After header (seconds) tells us when to check again.
+    // Contract for GET /jobs/{job_id}/output (status is always present):
+    //   404 { status: "notfound" }                          -> not received yet (up to ~20 s after upload) or lost on restart
+    //   200 { status: "pending", message, input }           -> waiting or AdaL is generating; message = latest progress text
+    //   200 { status: "done", input, output: { bucket, key, url, expires_in: 3600 } } -> url is a fresh presigned link
+    //   200 { status: "failed", message, input }            -> message = error text
+    // The video is loaded ONLY on "done". Extra codes below are tolerated in case the server changes later.
     const NOT_READY_CODES = [202, 409, 423, 425, 503];
-    const NOT_READY_STATES = /queue|pending|wait|upload|process|running|render|progress|working|in_progress|started/;
-    const DONE_STATES = /done|complete|success|succeeded|finished|ready/;
-    const FAILED_STATES = /fail|error|cancel/;
+    const DONE_STATES = /^(done|complete|completed|success|succeeded|finished|ready)$/;
+    const FAILED_STATES = /^(failed|failure|error|cancelled|canceled)$/;
 
     const POLL_START_MS = 5000;              // first check interval
     const POLL_MAX_MS = 15000;               // slow down to this while a long job runs
     const POLL_TIMEOUT_MS = 30 * 60 * 1000;  // give up after 30 min (matches the queue visibility timeout)
-    const NEW_JOB_GRACE_MS = 60 * 1000;      // a 404 within 1 min of upload means "not registered yet", not "missing"
+    const NEW_JOB_GRACE_MS = 60 * 1000;      // a notfound within 1 min of upload means "not picked up yet" (SQS long-poll is 20 s)
 
     // ==== Small helpers ===================================================================
     const $ = (id) => document.getElementById(id);
@@ -284,7 +284,7 @@
                  fill: $("job-fill"), sub: $("job-sub") };
     const resultVideo = $("result-video"), resultLink = $("result-link");
 
-    const LABELS = { queued: "Queued", processing: "AdaL is working", done: "Ready", failed: "Failed" };
+    const LABELS = { queued: "Waiting for server", processing: "In progress", done: "Ready", failed: "Failed" };
 
     // Turn any backend response into one of: not_ready | done | failed | not_found.
     // A finished video is ONLY accepted when the backend explicitly says the job is done.
@@ -293,23 +293,23 @@
       const retryAfter = Number(res.headers.get("Retry-After")) || null; // needs Access-Control-Expose-Headers
       let data = {};
       try { data = await res.json(); } catch { /* empty or non-JSON body */ }
-      const raw = String(data.status || data.state || "").toLowerCase();
+      const raw = String(data.status || "").toLowerCase();
       const info = {
         raw, retryAfter,
-        progress: Number.isFinite(Number(data.progress)) ? Number(data.progress) : null,
-        stage: data.stage || data.step || data.detail || null,
-        eta: Number(data.eta_seconds) || null,
-        url: data.output_url || data.video_url || data.download_url || null,
-        error: data.error || data.reason || null,
+        progress: Number.isFinite(Number(data.progress)) ? Number(data.progress) : null, // not sent today
+        stage: data.message || null,                   // pending: latest AdaL progress text
+        eta: Number(data.eta_seconds) || null,         // not sent today
+        url: (data.output && data.output.url) || null, // done: fresh presigned S3 link (1 hour)
+        error: data.message || null,                   // failed: error text
       };
 
-      if (res.status === 404) return { kind: "not_found", ...info };
-      if (NOT_READY_CODES.includes(res.status)) return { kind: "not_ready", queued: /queue|pending/.test(raw), ...info };
+      if (res.status === 404 || raw === "notfound") return { kind: "not_found", ...info };
+      if (NOT_READY_CODES.includes(res.status)) return { kind: "not_ready", ...info };
       if (!res.ok) { const e = new Error(`Status check failed (${res.status}).`); e.retryAfter = retryAfter; throw e; }
       if (FAILED_STATES.test(raw)) return { kind: "failed", ...info };
       if (DONE_STATES.test(raw)) return { kind: "done", ...info };
-      // 200 with a "still working" status, or an unrecognised status: keep waiting, never assume it's finished.
-      return { kind: "not_ready", queued: /queue|pending/.test(raw), ...info };
+      // "pending", or any status we don't recognise: keep waiting, never assume it's finished.
+      return { kind: "not_ready", ...info };
     }
 
     function setBadge(kind) {
@@ -328,7 +328,7 @@
       jp.pct.textContent = hasPct ? Math.floor(job.progress) + "%" : "";
       if (hasPct) jp.track.setAttribute("aria-valuenow", String(Math.floor(job.progress)));
       else jp.track.removeAttribute("aria-valuenow");
-      jp.label.textContent = job.stage || (job.queued ? "Waiting in the queue…" : "AdaL is making your lesson…");
+      jp.label.textContent = job.stage || (job.queued ? "Waiting for the server to pick up your job…" : "AdaL is making your lesson…");
       const parts = [`Elapsed ${fmtTime((Date.now() - started) / 1000)}`];
       if (job.eta) parts.push(`about ${fmtTime(job.eta)} left`);
       parts.push(`next check in ${Math.round(nextMs / 1000)}s`);
@@ -378,7 +378,7 @@
         if (job.kind === "not_found") {
           // Right after an upload the backend may not have registered the job yet: treat as "queued".
           if (justUploaded && Date.now() - started < NEW_JOB_GRACE_MS) job = { ...job, kind: "not_ready", queued: true };
-          else { jp.box.hidden = true; return setJobMsg("Job not found. Check the ID, or the status service may not be available yet.", "err"); }
+          else { jp.box.hidden = true; return setJobMsg("Job not found. Check the ID. If you just uploaded, wait a few seconds and press Check. The server also forgets jobs when it restarts.", "err"); }
         }
 
         if (job.kind === "not_ready") {
