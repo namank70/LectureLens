@@ -175,7 +175,7 @@ function showJob(update) {
   let message = job.message || "";
   let isError = job.status === "error";
   if (hasAdalVideo) {
-    message = "AdaL lesson ready to play.";
+    message ||= "AdaL lesson ready to play.";
     isError = false;
   } else if (generationRunning) {
     message = job.generation.message || "AdaL is creating your lesson…";

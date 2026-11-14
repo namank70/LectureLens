@@ -13,7 +13,7 @@ Branch from `main`. Push only your own branch; D combines them on `integration/d
 | C | `person-c/video-production` | `video_render.py`, `sample/models/` (two model-orbit MP4 fixtures) |
 | D | `person-d/backend-integration` | `server.js`, `.gitignore`, `README.md` |
 
-Never commit raw footage, finished lesson exports, `.local/`, credentials or signed agreements. The AdaL MP4 is shared privately and imported through the app.
+Keep raw footage, finished lesson exports, `.local/`, credentials and signed agreements outside Git. The studio can also import an AdaL MP4 shared privately by a teammate.
 
 ## Run
 
@@ -53,7 +53,7 @@ Jobs include `generation_available` and `generation: { status, message }`, where
 
 ## Sample notes contract (Person B)
 
-`sample/chapters.json` is either an array of seven chapters or `{ "pdf": "...", "script": "...", "chapters": [...] }`. Each chapter needs `page`, `title`, `place`, `era`, `narration`, `visual`, and optionally `asset` (a path relative to `sample/`). Without `asset`, the server matches an image in `sample/` named by page, such as `01-giza.png` or `page-1.jpg`. Without `pdf`/`script`, it uses the first PDF in `sample/` and the first file with `script` in its name.
+`sample/chapters.json` is either an array of seven chapters or `{ "pdf": "...", "script": "...", "chapters": [...] }`. Each chapter needs `page`, `title`, `place`, `era`, `narration`, `visual`, and optionally `asset` (a path relative to `sample/`). Without `asset`, the server matches an image in `sample/` named by page, such as `01-giza.png` or `page-1.jpg`. The default notes and script are `Seven-Wonders-Source-Notes.pdf` and `Seven-Wonders-Recording-Script.pdf`.
 
 ## Renderer contract (Person C)
 

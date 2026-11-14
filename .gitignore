@@ -1,5 +1,7 @@
 # Local job data: uploads, previews, imported AdaL exports
 .local/
+/output/
+/tmp/
 
 # Raw footage and finished lesson exports stay out of Git
 *.mp4
@@ -9,7 +11,8 @@
 *.mkv
 *.avi
 # ...except the two supplied model-orbit fixtures
-!sample/models/*.mp4
+!/sample/models/giza-orbit.mp4
+!/sample/models/alexandria-orbit.mp4
 
 # Credentials and keys
 .env
