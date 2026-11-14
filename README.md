@@ -62,7 +62,7 @@ sequenceDiagram
     P->>S: Play the video from the one-hour link
 ```
 
-There is one way in. The home page introduces the product and shows the example storyboard; **Create a lesson** opens the upload page in a dialog over it. The same dialog lists past lessons and plays them.
+There is one way in. The home page introduces the product and shows the example storyboard; **Create a lesson** opens the upload page in a dialog over it. Under the hero, **Your lessons** lists past and in-progress lessons from the queue server and plays them in place.
 
 - **Upload and generation (second diagram).** The upload page sends the files straight to S3 using short-lived upload links, so large videos never pass through our own servers. When both files have arrived, a Lambda puts one job on an SQS queue. The queue server on the AdaL computer picks the job up, runs AdaL through `adal_generation.js`, and uploads the finished MP4 back to S3. The page polls the queue server for status and plays the result from a one-hour presigned link. Details and the API are in [aws/README.md](aws/README.md).
 - **Studio server.** `server.js` serves the two pages and the example lesson. It also still exposes the earlier local project API (direct upload, AdaL generation, local preview with `video_render.py`, MP4 import) described under [API](#api), but the home page no longer has a form for it.

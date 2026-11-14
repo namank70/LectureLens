@@ -131,10 +131,104 @@ if (typeof uploadDialog.showModal === "function") {
     });
   }
   byId("upload-dialog-close").addEventListener("click", () => uploadDialog.close());
+  uploadDialog.addEventListener("close", () => loadLessons()); // a new upload may have been queued
   uploadDialog.addEventListener("click", (event) => {
     if (event.target === uploadDialog) uploadDialog.close(); // a click on the backdrop
   });
 }
+
+// ==== Your lessons ====================================================================
+// Past jobs come from the queue server (aws/server.js) on the AdaL computer. If this page is
+// opened anywhere else, change QUEUE_SERVER here and in upload.html to that computer's address.
+const QUEUE_SERVER = "http://127.0.0.1:8080";
+const lessonsList = byId("lessons-list");
+const lessonVideo = byId("lesson-video");
+const lessonDownload = byId("lesson-download");
+let selectedLesson = null;
+let lessonsTimer = null;
+
+function lessonWhen(iso) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "Unknown date"
+    : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// Each click asks for a fresh link, because the links expire after an hour.
+async function playLesson(jobId) {
+  selectedLesson = jobId;
+  for (const button of lessonsList.querySelectorAll("button")) {
+    button.setAttribute("aria-current", String(button.dataset.jobId === jobId));
+  }
+  showStatus("lesson-player-status", "Loading the video…");
+  try {
+    const job = await request(`${QUEUE_SERVER}/jobs/${encodeURIComponent(jobId)}/output`, { cache: "no-store" });
+    if (selectedLesson !== jobId) return;
+    if (job.status !== "done" || !job.output?.url) {
+      lessonVideo.hidden = true;
+      lessonDownload.hidden = true;
+      showStatus("lesson-player-status", job.status === "pending"
+        ? (job.message || "AdaL is still making this lesson.")
+        : "This lesson has no video to play.", job.status !== "pending");
+      return;
+    }
+    lessonVideo.src = job.output.url;
+    lessonVideo.hidden = false;
+    lessonDownload.href = job.output.url;
+    lessonDownload.hidden = false;
+    showStatus("lesson-player-status", "");
+  } catch (error) {
+    if (selectedLesson !== jobId) return;
+    lessonVideo.hidden = true;
+    lessonDownload.hidden = true;
+    showStatus("lesson-player-status", `Could not load this lesson. ${error.message}`, true);
+  }
+}
+
+async function loadLessons() {
+  clearTimeout(lessonsTimer);
+  let jobs;
+  try {
+    jobs = (await request(`${QUEUE_SERVER}/jobs`, { cache: "no-store" })).jobs;
+    if (!Array.isArray(jobs)) throw new Error("Unexpected response.");
+  } catch {
+    lessonsList.hidden = true;
+    showStatus("lessons-status", "Could not reach the queue server, so past lessons are unavailable.", true);
+    return;
+  }
+  // Failed jobs have nothing to play, so they stay out of this list.
+  const lessons = jobs.filter((job) => job.status === "done" || job.status === "pending");
+  showStatus("lessons-status", lessons.length ? "" : "No lessons yet. Create your first one above.");
+  lessonsList.hidden = !lessons.length;
+  lessonsList.replaceChildren(...lessons.map((job) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.jobId = job.job_id;
+    button.setAttribute("aria-current", String(job.job_id === selectedLesson));
+    const when = document.createElement("span");
+    when.className = "lesson-when";
+    when.textContent = lessonWhen(job.finished_at || job.received_at);
+    const state = document.createElement("span");
+    state.className = `lesson-state${job.status === "done" ? " ready" : ""}`;
+    state.textContent = job.status === "done" ? "Ready" : "In progress";
+    const id = document.createElement("span");
+    id.className = "lesson-id";
+    id.textContent = job.job_id;
+    button.append(when, state, id);
+    button.addEventListener("click", () => playLesson(job.job_id));
+    item.append(button);
+    return item;
+  }));
+  // Keep checking while something is still being made, so it turns Ready without a reload.
+  if (lessons.some((job) => job.status === "pending")) lessonsTimer = setTimeout(loadLessons, 15000);
+}
+
+lessonVideo.addEventListener("error", () => {
+  if (!lessonVideo.getAttribute("src")) return;
+  showStatus("lesson-player-status", "The video did not load. Choose the lesson again to get a fresh link.", true);
+});
+byId("lessons-refresh").addEventListener("click", loadLessons);
+loadLessons();
 
 async function loadSample() {
   try {

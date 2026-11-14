@@ -175,7 +175,9 @@ async function generateLesson({
   const attempt = await mkdtemp(join(resolve(folder), "adal-run-"));
   const outputPath = join(attempt, "lesson.mp4");
   const promptPath = join(attempt, "prompt.txt");
-  const projectSlug = `lecturelens-${randomUUID()}`;
+  // AdaL shortens project IDs to 40 characters, so keep this one under that:
+  // a longer ID leaves the export in a folder this code would not look in.
+  const projectSlug = `lecturelens-${randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const videoRoot = await videoProjectsDir();
   const projectOutput = join(videoRoot, projectSlug, "videos", "lesson", "lesson.mp4");
   await writeFile(promptPath, [
