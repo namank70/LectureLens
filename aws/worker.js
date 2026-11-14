@@ -86,7 +86,7 @@ async function processJob(job, {
   }
 }
 
-function s3Store(s3, { GetObjectCommand, PutObjectCommand }) {
+function s3Store(s3, { GetObjectCommand, PutObjectCommand, ListObjectsV2Command }) {
   return {
     async download(Bucket, Key, file) {
       const { Body } = await s3.send(new GetObjectCommand({ Bucket, Key }));
@@ -98,6 +98,17 @@ function s3Store(s3, { GetObjectCommand, PutObjectCommand }) {
     },
     async putText(Bucket, Key, text) {
       await s3.send(new PutObjectCommand({ Bucket, Key, Body: text, ContentType: 'text/plain; charset=utf-8' }));
+    },
+    // Every object under a prefix, as [{ key, lastModified }].
+    async list(Bucket, Prefix) {
+      const objects = [];
+      let ContinuationToken;
+      do {
+        const page = await s3.send(new ListObjectsV2Command({ Bucket, Prefix, ContinuationToken }));
+        for (const item of page.Contents || []) objects.push({ key: item.Key, lastModified: item.LastModified });
+        ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (ContinuationToken);
+      return objects;
     },
   };
 }

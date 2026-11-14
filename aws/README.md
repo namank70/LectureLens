@@ -92,10 +92,13 @@ SQS_QUEUE_URL=https://sqs.us-east-2.amazonaws.com/690845170348/lecturelens-jobs-
 | `HOST` | `127.0.0.1` | Bind address |
 | `FFPROBE` | `ffprobe` | ffprobe used to verify the MP4 |
 | `ADAL_BIN` | unset | AdaL CLI path, if it is not on `PATH` |
+| `UPLOADS_BUCKET` | the deployed bucket above | Bucket read at startup to restore finished jobs |
 
 The server exits with a one-line message if `SQS_QUEUE_URL` is missing or the AdaL CLI cannot be found.
 
-Jobs run one at a time, in the order received. Each job fills `ADAL-VIDEO-PROMPT.md` with the downloaded files and calls `generateLesson` from `adal_generation.js`, the same call the studio's **Generate lesson video** button makes. It does not add the per-scene map that the studio's `server.js` appends for the sample notes. Working files stay under `.local/aws-jobs/<job_id>/`.
+Jobs run one at a time, in the order received. Each job fills `ADAL-VIDEO-PROMPT.md` with the downloaded files and calls `generateLesson` from `adal_generation.js`, the same call the studio server's generate route makes. It does not add the per-scene map that the studio's `server.js` appends for the sample notes. Working files stay under `.local/aws-jobs/<job_id>/`.
+
+On startup the server lists the bucket and restores every job that already has an `output.mp4` (as `done`) or an `error.txt` (as `failed`), so earlier videos stay available after a restart. Jobs that were still waiting or running are not restored; SQS delivers them again.
 
 A job's queue message is deleted only once the job is `done` or `failed`. A failed job is also recorded in `error.txt`. Upload again with a new job to retry.
 
@@ -158,13 +161,13 @@ Generation failed (HTTP 200):
 `notfound` does not always mean the job does not exist. Job state is kept in memory only, so the server also answers `notfound` for:
 
 - a job whose files are uploaded but whose queue message this server has not received yet (normally a few seconds, up to about 20), and
-- any job from before the server last restarted, even if its `output.mp4` is in the bucket.
+- a job from before the server last restarted that had not finished. It reports `notfound` until SQS delivers its message again, which can take up to the 30-minute visibility timeout. Finished jobs are restored from the bucket and keep reporting `done` or `failed`.
 
 Keep polling for a short while after an upload before treating `notfound` as final.
 
 #### `GET /jobs`
 
-Every job the server knows about, newest first, without presigned URLs:
+Every job the server knows about, newest first, without presigned URLs. This includes finished jobs restored from the bucket; the upload page uses it for its **Past lessons** list and asks `/jobs/{job_id}/output` for a link when one is chosen:
 
 ```json
 {

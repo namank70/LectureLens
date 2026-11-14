@@ -4,12 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LectureLens Upload</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <style>
-    :root { --bg: #f7f3ea; --card: #fffdf8; --ink: #24231f; --muted: #6b675d; --accent: #5b6b3a;
-            --track: #e8e2d2; --line: #ddd6c6; --ok: #2f6b3a; --err: #a33a2a; }
+    /* Same palette as the home page (static/styles.css). */
+    :root { --bg: #f7f8f2; --card: #fff; --ink: #17271f; --muted: #516158; --accent: #173928;
+            --track: #e8f0df; --line: #dce1d5; --ok: #23533b; --err: #a33a2a; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
-           background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+           background: var(--bg); color: var(--ink); font: 16px/1.5 "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
     main { width: 100%; max-width: 480px; display: grid; gap: 16px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; display: grid; gap: 20px; }
     h1 { margin: 0; font-size: 1.4rem; }
@@ -46,18 +50,36 @@
     .row { display: flex; gap: 8px; }
     .row input { flex: 1; min-width: 0; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
     .row button { padding: 10px 14px; }
-    .badge { justify-self: start; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: #ece6d6; }
-    .badge.done { background: #dcebd9; color: var(--ok); } .badge.failed { background: #f3dcd7; color: var(--err); }
+    .badge { justify-self: start; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: #e8f0df; }
+    .badge.done { background: #cee887; color: #173928; } .badge.failed { background: #f3dcd7; color: var(--err); }
     video { width: 100%; border-radius: 8px; background: #000; }
     a.download { font-weight: 600; color: var(--accent); }
     a.back { justify-self: start; font-size: .9rem; font-weight: 600; color: var(--accent); text-decoration: none; }
     a.back:hover { text-decoration: underline; }
+
+    /* Past lessons */
+    .list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    button.link { padding: 0; background: none; color: var(--accent); font-size: .9rem; }
+    ul.lessons { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    ul.lessons button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
+                        text-align: left; padding: 10px 12px; background: #fff; color: var(--ink);
+                        border: 1px solid var(--line); border-radius: 8px; font-weight: 400; }
+    ul.lessons button:hover, ul.lessons button[aria-current="true"] { border-color: var(--accent); }
+    ul.lessons .when { font-weight: 600; }
+    ul.lessons .id { grid-column: 1; font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ul.lessons .badge { grid-row: 1 / span 2; grid-column: 2; }
+
+    /* Shown inside the home page's upload dialog: the dialog supplies the frame and the way back. */
+    .embedded body { display: block; min-height: 0; padding: 16px; }
+    .embedded main { max-width: none; }
+    .embedded a.back { display: none; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
+  <script>if (window.self !== window.top) document.documentElement.classList.add("embedded");</script>
   <main>
-    <a class="back" href="index.html">← Back to studio</a>
+    <a class="back" href="index.html">← Back to home</a>
     <form id="upload-form" class="card" novalidate>
       <h1>Upload lesson files</h1>
       <p class="hint">Add your recording and your notes, then submit. The lesson is queued once both files are uploaded.</p>
@@ -108,6 +130,15 @@
       <video id="result-video" controls playsinline hidden></video>
       <a id="result-link" class="download" target="_blank" rel="noopener" hidden>Open / download video</a>
     </section>
+
+    <section id="past" class="card">
+      <div class="list-head">
+        <h2>Past lessons</h2>
+        <button type="button" id="past-refresh" class="link">Refresh</button>
+      </div>
+      <p id="past-status" class="status" role="status" aria-live="polite">Loading…</p>
+      <ul id="past-list" class="lessons" hidden></ul>
+    </section>
   </main>
 
   <script>
@@ -120,6 +151,7 @@
     // anywhere else, replace QUEUE_SERVER with the tunnel or network address of that machine.
     const QUEUE_SERVER = "http://127.0.0.1:8080";
     const JOB_STATUS_URL = QUEUE_SERVER + "/jobs/{job_id}/output";
+    const JOB_LIST_URL = QUEUE_SERVER + "/jobs";   // every job the server knows, newest first
 
     // Contract for GET /jobs/{job_id}/output (status is always present):
     //   404 { status: "notfound" }                          -> not received yet (up to ~20 s after upload) or lost on restart
@@ -360,6 +392,7 @@
       resetResult();
       if (!/^[A-Za-z0-9_-]{1,64}$/.test(jobId)) return setJobMsg("That doesn't look like a valid job ID.", "err");
       jobIdInput.value = jobId;
+      markSelected(jobId);
       const run = ++pollRun;
       const started = Date.now();
       let interval = POLL_START_MS;
@@ -398,12 +431,12 @@
         }
 
         if (job.kind === "failed") {
-          setBadge("failed"); finishProcessing("failed");
+          setBadge("failed"); finishProcessing("failed"); loadPastLessons();
           return setJobMsg(job.error ? `Processing failed: ${job.error}` : "Processing failed.", "err");
         }
 
         // kind === "done": only now do we load the video.
-        setBadge("done"); finishProcessing("done");
+        setBadge("done"); finishProcessing("done"); loadPastLessons();
         if (!job.url) return setJobMsg("The lesson is finished, but no video link was returned.", "err");
         resultVideo.onerror = async () => {
           // Pre-signed links expire. Ask the status endpoint once for a fresh link.
@@ -420,6 +453,68 @@
         return setJobMsg("Your lesson video is ready.", "ok");
       }
     }
+
+    // ==== Past lessons (GET /jobs) ========================================================
+    // Lists earlier jobs from the queue server. Choosing one runs the normal status check,
+    // which fetches a fresh video link, so nothing here stores or reuses an old link.
+    const pastList = $("past-list"), pastStatus = $("past-status");
+    const PAST_LABELS = { done: "Ready", failed: "Failed", pending: "In progress" };
+
+    function fmtWhen(iso) {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? "Unknown date"
+        : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    function markSelected(jobId) {
+      pastList.querySelectorAll("button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.jobId === jobId)));
+    }
+
+    async function loadPastLessons() {
+      let jobs;
+      try {
+        const res = await fetch(JOB_LIST_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`(${res.status})`);
+        jobs = (await res.json()).jobs;
+        if (!Array.isArray(jobs)) throw new Error("(unexpected response)");
+      } catch {
+        pastList.hidden = true;
+        pastStatus.hidden = false;
+        pastStatus.className = "status err";
+        pastStatus.textContent = "Could not load past lessons. Is the queue server running?";
+        return;
+      }
+      pastStatus.className = "status";
+      pastStatus.hidden = jobs.length > 0;
+      pastStatus.textContent = jobs.length ? "" : "No lessons yet. Upload a recording and notes to make the first one.";
+      pastList.hidden = jobs.length === 0;
+      pastList.replaceChildren(...jobs.map((job) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.jobId = job.job_id;
+        const when = document.createElement("span");
+        when.className = "when";
+        when.textContent = fmtWhen(job.finished_at || job.received_at);
+        const id = document.createElement("span");
+        id.className = "id";
+        id.textContent = job.job_id;
+        const state = document.createElement("span");
+        state.className = "badge " + (job.status === "done" ? "done" : job.status === "failed" ? "failed" : "");
+        state.textContent = PAST_LABELS[job.status] || job.status;
+        button.append(when, state, id);
+        button.addEventListener("click", () => {
+          watchJob(job.job_id);
+          $("job").scrollIntoView({ block: "start", behavior: "smooth" });
+        });
+        li.append(button);
+        return li;
+      }));
+      markSelected(jobIdInput.value);
+    }
+
+    $("past-refresh").addEventListener("click", loadPastLessons);
+    loadPastLessons();
 
     checkBtn.addEventListener("click", () => watchJob(jobIdInput.value));
     jobIdInput.addEventListener("keydown", (e) => { if (e.key === "Enter") watchJob(jobIdInput.value); });

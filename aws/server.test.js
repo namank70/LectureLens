@@ -8,7 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { createStore, createConsumer, createHttpHandler } = require('./server.js');
+const { createStore, createConsumer, createHttpHandler, restoreJobs } = require('./server.js');
 
 const BUCKET = 'test-bucket';
 
@@ -295,6 +295,50 @@ test('health, CORS preflight, 405 and unknown routes', async (t) => {
   const unknown = await request('/nothing-here');
   assert.strictEqual(unknown.status, 404);
   assert.deepStrictEqual(unknown.body, { error: 'not_found' });
+});
+
+test('finished jobs are restored from the bucket and are not run again', async (t) => {
+  const { consumer, store, deleted, generations, request } = await setup(t);
+  const objectStore = {
+    list: async (bucket, prefix) => {
+      assert.strictEqual(prefix, 'jobs/');
+      return [
+        { key: 'jobs/old1/recording.mp4', lastModified: new Date('2026-11-13T10:00:00Z') },
+        { key: 'jobs/old1/notes.pdf', lastModified: new Date('2026-11-13T10:00:05Z') },
+        { key: 'jobs/old1/output.mp4', lastModified: new Date('2026-11-13T10:08:00Z') },
+        { key: 'jobs/old2/recording.mp4', lastModified: new Date('2026-11-13T11:00:00Z') },
+        { key: 'jobs/old2/error.txt', lastModified: new Date('2026-11-13T11:03:00Z') },
+        { key: 'jobs/unfinished/recording.mp4', lastModified: new Date('2026-11-13T12:00:00Z') },
+        { key: 'jobs/unfinished/queued.json', lastModified: new Date('2026-11-13T12:00:01Z') },
+        { key: 'jobs/bad id/output.mp4', lastModified: new Date('2026-11-13T12:00:00Z') },
+      ];
+    },
+  };
+  const restored = await restoreJobs({ store, objectStore, bucket: BUCKET, log: () => {} });
+  assert.strictEqual(restored, 2);
+
+  const done = await request('/jobs/old1/output');
+  assert.strictEqual(done.body.status, 'done');
+  assert.strictEqual(done.body.output.key, 'jobs/old1/output.mp4');
+  assert.ok(done.body.output.url.includes('jobs/old1/output.mp4'));
+  assert.strictEqual((await request('/jobs/old2/output')).body.status, 'failed');
+  assert.strictEqual((await request('/jobs/unfinished/output')).status, 404);
+
+  const list = await request('/jobs');
+  assert.deepStrictEqual(list.body.jobs.map((job) => job.job_id), ['old2', 'old1']);
+  assert.strictEqual(list.body.jobs[1].received_at, '2026-11-13T10:00:00.000Z');
+  assert.strictEqual(list.body.jobs[1].finished_at, '2026-11-13T10:08:00.000Z');
+
+  // A redelivered message for a restored job is deleted, not generated again.
+  await consumer.handleMessage(jobMessage('old1', 'redelivered'));
+  await consumer.idle();
+  assert.strictEqual(generations.length, 0);
+  assert.deepStrictEqual(deleted, ['redelivered']);
+
+  // An unfinished job is still picked up normally.
+  await consumer.handleMessage(jobMessage('unfinished'));
+  await consumer.idle();
+  assert.strictEqual(generations.length, 1);
 });
 
 test('an SQS error does not stop the polling loop', async (t) => {
