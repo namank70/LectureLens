@@ -4,6 +4,7 @@ const byId = (id) => document.getElementById(id);
 const pdfInput = byId("pdf-input");
 const videoInput = byId("video-input");
 const sampleButton = byId("use-sample");
+const sampleStoryboardButton = byId("view-sample");
 const submitButton = byId("prepare-project");
 const promptBox = byId("adal-prompt");
 const importInput = byId("import-video");
@@ -11,7 +12,10 @@ const renderButton = byId("render-preview");
 const sourceVideo = byId("source-video");
 const outputVideo = byId("output-video");
 const chapterList = byId("chapter-list");
+const notesCard = pdfInput.closest(".upload-card");
+const recordingCard = videoInput.closest(".upload-card");
 const recordingHint = byId("video-detail").textContent;
+const notesHint = byId("pdf-detail").textContent;
 
 let sample = null;
 let usingSample = false;
@@ -84,6 +88,7 @@ function selectChapter(index) {
 function showStoryboard(nextChapters, pdfUrl, label, emptyMessage) {
   chapters = Array.isArray(nextChapters) ? nextChapters : [];
   sourcePdf = pdfUrl;
+  byId("storyboard").hidden = false;
   byId("storyboard-label").textContent = label;
   byId("chapter-view").hidden = !chapters.length;
   byId("chapter-controls").hidden = chapters.length < 2;
@@ -115,8 +120,9 @@ function showJob(update) {
   promptBox.value = job.adal_prompt || "";
   byId("copy-prompt").disabled = !promptBox.value;
   byId("playback-detail").textContent = job.chapters?.length
-    ? "Check the timing with a local preview using the original recording and sample illustrations."
-    : "Import an AdaL export to play your custom lesson. The local preview uses the Seven Wonders sample notes.";
+    ? "Check the lesson with a local preview using the recording and source illustrations."
+    : "Import the MP4 exported from AdaL to review and download your lesson.";
+  renderButton.hidden = !job.chapters?.length;
   const result = byId("render-result");
   const renderUrl = job.render_url;
   result.hidden = !renderUrl;
@@ -128,10 +134,8 @@ function showJob(update) {
     outputVideo.load();
   }
   let message = job.message || "";
-  if (job.status === "rendered" && job.render_mode === "adal") {
-    message = "AdaL export imported and ready to play.";
-  } else if (job.status === "rendered" && job.render_mode === "preview") {
-    message = "Local preview ready. It uses your original recording and reference art.";
+  if (renderUrl && !message) {
+    message = job.render_mode === "adal" ? "AdaL export ready to play." : "Local preview ready to play.";
   }
   showStatus("render-status", message, job.status === "error");
   refreshOutputActions();
@@ -154,7 +158,7 @@ async function pollJob(jobId) {
 
 function showSample() {
   if (sample) {
-    showStoryboard(sample.chapters, sample.pdf_url, "SAMPLE STORYBOARD", "The sample has no chapters.");
+    showStoryboard(sample.chapters, sample.pdf_url, "SEVEN WONDERS EXAMPLE", "The example has no scenes.");
   }
 }
 
@@ -166,28 +170,55 @@ function clearProject() {
   outputVideo.load();
   byId("production").hidden = true;
   showStatus("copy-status", "");
-  showSample();
-  showStatus("project-status", "Prepare the project to use the new inputs.");
+  byId("storyboard").hidden = true;
+}
+
+function showInputStatus() {
+  const hasNotes = usingSample || pdfInput.files.length;
+  const hasRecording = videoInput.files.length;
+  let message = "Add both files to prepare your AdaL prompt.";
+  if (hasNotes && hasRecording) {
+    message = "Both files are ready. Prepare your lesson project.";
+  } else if (hasNotes) {
+    message = "Choose a presenter recording to continue.";
+  } else if (hasRecording) {
+    message = "Choose a source PDF to continue.";
+  }
+  showStatus("project-status", message);
 }
 
 sampleButton.addEventListener("click", () => {
   if (!sample) return;
   usingSample = true;
   pdfInput.value = "";
-  byId("pdf-detail").textContent = "Seven Wonders of the Ancient World · sample PDF selected";
+  notesCard.classList.add("is-ready");
+  byId("pdf-detail").textContent = "Seven Wonders of the Ancient World · example notes selected";
   clearProject();
+  showInputStatus();
+  byId("studio").scrollIntoView({ block: "start" });
+});
+
+sampleStoryboardButton.addEventListener("click", () => {
+  if (!sample?.chapters?.length) return;
+  showSample();
+  byId("storyboard-heading").focus({ preventScroll: true });
+  byId("storyboard").scrollIntoView({ block: "start" });
 });
 
 pdfInput.addEventListener("change", () => {
   if (!pdfInput.files.length && usingSample) return;
   usingSample = false;
-  byId("pdf-detail").textContent = pdfInput.files[0]?.name || "Choose the illustrated Seven Wonders PDF or upload your own.";
+  notesCard.classList.toggle("is-ready", Boolean(pdfInput.files.length));
+  byId("pdf-detail").textContent = pdfInput.files[0]?.name || notesHint;
   clearProject();
+  byId("storyboard").hidden = true;
+  showInputStatus();
 });
 
 videoInput.addEventListener("change", () => {
   if (sourceObjectUrl) URL.revokeObjectURL(sourceObjectUrl);
   const recording = videoInput.files[0];
+  recordingCard.classList.toggle("is-ready", Boolean(recording));
   sourceObjectUrl = recording ? URL.createObjectURL(recording) : null;
   showStatus("source-playback-status", "");
   if (sourceObjectUrl) {
@@ -199,12 +230,72 @@ videoInput.addEventListener("change", () => {
   byId("video-detail").textContent = recording?.name || recordingHint;
   byId("recording-preview").hidden = !recording;
   clearProject();
+  showInputStatus();
 });
 
 sourceVideo.addEventListener("error", () => {
   if (!sourceObjectUrl) return;
   byId("recording-preview").open = true;
   showStatus("source-playback-status", "This browser could not play the recording. Use an H.264/AAC MP4 to preview it here.", true);
+});
+
+function enableDrop(card, input) {
+  const allowedExtensions = input.accept.split(",").filter((type) => type.startsWith("."));
+  let dragDepth = 0;
+  const hasFiles = (event) => event.dataTransfer?.types.includes("Files");
+
+  card.addEventListener("dragenter", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    if (!input.disabled) {
+      dragDepth++;
+      card.classList.add("is-dragging");
+    }
+  });
+  card.addEventListener("dragover", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = input.disabled ? "none" : "copy";
+  });
+  card.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) card.classList.remove("is-dragging");
+  });
+  card.addEventListener("drop", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    card.classList.remove("is-dragging");
+    if (input.disabled) return;
+    const files = event.dataTransfer.files;
+    const file = files[0];
+    if (files.length !== 1 || !allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+      showStatus("project-status", input === pdfInput
+        ? "Drop one PDF into Source notes."
+        : "Drop one MP4, MOV, or WebM into Camera recording.", true);
+      return;
+    }
+    input.files = files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+enableDrop(notesCard, pdfInput);
+enableDrop(recordingCard, videoInput);
+
+const workflowScene = document.querySelector(".workflow-scene");
+const sceneInteraction = window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
+workflowScene.addEventListener("pointermove", (event) => {
+  if (!sceneInteraction.matches || event.pointerType === "touch") return;
+  const rect = workflowScene.getBoundingClientRect();
+  const horizontal = (event.clientX - rect.left) / rect.width - 0.5;
+  const vertical = (event.clientY - rect.top) / rect.height - 0.5;
+  workflowScene.style.setProperty("--tilt-x", `${vertical * -12}deg`);
+  workflowScene.style.setProperty("--tilt-y", `${horizontal * 16}deg`);
+});
+workflowScene.addEventListener("pointerleave", () => {
+  workflowScene.style.removeProperty("--tilt-x");
+  workflowScene.style.removeProperty("--tilt-y");
 });
 
 byId("previous-chapter").addEventListener("click", () => selectChapter(chapterIndex - 1));
@@ -232,7 +323,11 @@ byId("project-form").addEventListener("submit", async (event) => {
     if (usingSample) form.append("sample_notes", "true");
     else form.append("pdf", pdf);
     const project = await request("/api/project", { method: "POST", body: form });
-    showStoryboard(project.chapters, project.pdf_url, "PROJECT STORYBOARD", "Use the AdaL prompt to develop a storyboard from your uploaded notes.");
+    if (project.chapters?.length) {
+      showStoryboard(project.chapters, project.pdf_url, "PROJECT STORYBOARD", "");
+    } else {
+      byId("storyboard").hidden = true;
+    }
     showJob(project);
     showStatus("project-status", "Project ready. Open the production options below.");
     byId("production-heading").focus({ preventScroll: true });
@@ -244,7 +339,7 @@ byId("project-form").addEventListener("submit", async (event) => {
     submitButton.disabled = false;
     pdfInput.disabled = false;
     videoInput.disabled = false;
-    sampleButton.disabled = !sample;
+    sampleButton.disabled = !sample?.pdf_url;
   }
 });
 
@@ -290,15 +385,18 @@ importInput.addEventListener("change", () => {
 async function loadSample() {
   try {
     sample = await request("/api/demo");
-    byId("sample-pdf").href = sample.pdf_url;
-    byId("sample-script").href = sample.script_url;
-    byId("sample-links").hidden = false;
-    sampleButton.disabled = uploading;
-    const firstChapter = sample.chapters?.[0];
-    if (firstChapter?.asset_url) byId("hero-image").src = firstChapter.asset_url;
-    if (!job) showSample();
-  } catch (error) {
-    if (!job) showStatus("storyboard-status", error.message, true);
+    const notesLink = byId("sample-pdf");
+    const scriptLink = byId("sample-script");
+    if (sample.pdf_url) notesLink.href = sample.pdf_url;
+    if (sample.script_url) scriptLink.href = sample.script_url;
+    notesLink.hidden = !sample.pdf_url;
+    scriptLink.hidden = !sample.script_url;
+    byId("sample-links").hidden = !sample.pdf_url && !sample.script_url && !sample.chapters?.length;
+    sampleButton.disabled = uploading || !sample.pdf_url;
+    sampleStoryboardButton.disabled = !sample.chapters?.length;
+  } catch {
+    sampleButton.disabled = true;
+    sampleStoryboardButton.disabled = true;
   }
 }
 
