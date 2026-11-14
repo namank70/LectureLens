@@ -50,11 +50,14 @@
     .badge.done { background: #dcebd9; color: var(--ok); } .badge.failed { background: #f3dcd7; color: var(--err); }
     video { width: 100%; border-radius: 8px; background: #000; }
     a.download { font-weight: 600; color: var(--accent); }
+    a.back { justify-self: start; font-size: .9rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+    a.back:hover { text-decoration: underline; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
+    <a class="back" href="index.html">← Back to studio</a>
     <form id="upload-form" class="card" novalidate>
       <h1>Upload lesson files</h1>
       <p class="hint">Add your recording and your notes, then submit. The lesson is queued once both files are uploaded.</p>
