@@ -50,14 +50,17 @@ Job fields: `job_id`, `pdf_url`, `video_url`, `chapters`, `status` (`ready`, `re
 
 ## Renderer contract (Person C)
 
-The server runs:
+The server supports two calling conventions and picks one by reading `video_render.py`:
 
 ```sh
+# default (positional)
+python video_render.py RECORDING CHAPTERS_JSON OUTPUT_MP4
+# used when the script mentions --manifest
 python video_render.py --manifest .local/jobs/<id>/manifest.json --output .local/jobs/<id>/preview.mp4
 ```
 
-with `FFMPEG`, `FFPROBE` and `LECTURELENS_MANIFEST` in the environment. The manifest holds `video`, `pdf`, `output`, `width`/`height` (1280×720), `chapters` (each with an absolute `asset_path`), `models` (absolute paths of `sample/models/*`), `models_dir`, `ffmpeg` and `ffprobe`. Exit 0 after writing a 16:9 MP4 with the presenter's original audio and page labels. Progress lines on stdout appear in the UI; output is logged to `render.log`.
+Set `LECTURELENS_RENDERER_MODE=positional|manifest` to override. `CHAPTERS_JSON` is an array of the seven chapters, each with an absolute `asset_path` and a `motion_path` (`sample/models/giza-orbit.mp4` on page 1, `sample/models/alexandria-orbit.mp4` on page 7, otherwise `null`). The manifest wraps the same chapters with `video`, `pdf`, `output`, `width`/`height` (1280×720), `models`, `ffmpeg` and `ffprobe`. `FFMPEG`, `FFPROBE` and `LECTURELENS_MANIFEST` are set in the environment. Exit 0 after writing a 16:9 MP4 with the presenter's original audio and page labels. Stdout progress lines appear in the UI; everything is logged to `.local/jobs/<id>/render.log`.
 
 ## AdaL prompt (Person A)
 
-`adal_prompt` lists the absolute paths of the recording, PDF, illustrations and model fixtures, then the seven scenes. If `ADAL-VIDEO-PROMPT.md` exists, it is appended as creative direction; `{{VIDEO_PATH}}`, `{{PDF_PATH}}` and `{{JOB_DIR}}` are filled in.
+For the sample notes, `adal_prompt` is `ADAL-VIDEO-PROMPT.md` with `{{VIDEO}}` (the uploaded recording), `{{PDF}}` (the job's notes PDF) and `{{REFERENCES}}` (the `sample/` folder) filled in, followed by a scene map with each page's illustration and orbit clip. A custom PDF gets a neutral handoff with the recording and PDF paths instead of the Seven Wonders brief.

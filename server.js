@@ -24,6 +24,11 @@ const PROMPT_FILE = path.join(ROOT, 'ADAL-VIDEO-PROMPT.md');
 const MAX_UPLOAD_BYTES = Number(process.env.LECTURELENS_MAX_UPLOAD_MB || 700) * 1024 * 1024;
 const RENDER_TIMEOUT_MS = 15 * 60 * 1000;
 const CHAPTER_COUNT = 7;
+const NOTES_PDF_NAME = 'Seven-Wonders-Source-Notes.pdf';
+const SCRIPT_PDF_NAME = 'Seven-Wonders-Recording-Script.pdf';
+const MODELS_DIR = path.join(SAMPLE_DIR, 'models');
+// Orbit clips that replace the still illustration for the two hero pages.
+const MOTION_CLIPS = { 1: /giza/i, 7: /alexandria/i };
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.m4v', '.webm']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 const BROWSER_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1']);
@@ -226,10 +231,16 @@ function loadSample() {
 
   const files = walk(SAMPLE_DIR).filter((f) => !inside(path.join(SAMPLE_DIR, 'models'), f));
   const meta = Array.isArray(raw) ? {} : raw;
-  const pdfAbs = resolveSampleRef(meta.pdf) || files.find((f) => path.extname(f).toLowerCase() === '.pdf') || null;
+  const isScript = (f) => /script/i.test(path.basename(f));
+  const pdfAbs =
+    resolveSampleRef(meta.pdf) ||
+    resolveSampleRef(NOTES_PDF_NAME) ||
+    files.find((f) => path.extname(f).toLowerCase() === '.pdf' && !isScript(f)) ||
+    null;
   const scriptAbs =
     resolveSampleRef(meta.script) ||
-    files.find((f) => /script/i.test(path.basename(f)) && ['.md', '.txt', '.pdf'].includes(path.extname(f).toLowerCase())) ||
+    resolveSampleRef(SCRIPT_PDF_NAME) ||
+    files.find((f) => isScript(f) && ['.md', '.txt', '.pdf'].includes(path.extname(f).toLowerCase())) ||
     null;
 
   const problems = [];
@@ -241,7 +252,7 @@ function loadSample() {
       if (!chapter[key]) problems.push(`chapter ${i + 1} is missing "${key}"`);
     }
     if (!Number.isInteger(page) || page < 1 || page > CHAPTER_COUNT) problems.push(`chapter ${i + 1} has page ${JSON.stringify(c.page)}; pages must be 1-${CHAPTER_COUNT}`);
-    const assetAbs = resolveSampleRef(c.asset || c.asset_path || c.image || c.illustration) || findIllustration(files, page);
+    const assetAbs = resolveSampleRef(c.asset || c.asset_path || c.asset_url || c.image || c.illustration) || findIllustration(files, page);
     chapter._asset = assetAbs;
     chapter.asset_url = assetAbs ? sampleUrl(assetAbs) : null;
     if (!assetAbs) problems.push(`page ${page} has no illustration`);
@@ -264,7 +275,29 @@ function publicChapters(chapters) {
 }
 
 function modelFixtures() {
-  return walk(path.join(ROOT, 'sample', 'models'), 1).filter((f) => VIDEO_EXTS.has(path.extname(f).toLowerCase()) || ['.glb', '.gltf'].includes(path.extname(f).toLowerCase()));
+  return walk(MODELS_DIR, 1).filter((f) => VIDEO_EXTS.has(path.extname(f).toLowerCase()) || ['.glb', '.gltf'].includes(path.extname(f).toLowerCase()));
+}
+
+function motionPath(page) {
+  const re = MOTION_CLIPS[page];
+  if (!re) return null;
+  return modelFixtures().find((f) => VIDEO_EXTS.has(path.extname(f).toLowerCase()) && re.test(path.basename(f))) || null;
+}
+
+function rendererChapters(chapters) {
+  return chapters.map(({ _asset, ...c }) => ({ ...c, asset_path: _asset, motion_path: motionPath(c.page) }));
+}
+
+// C's renderer is either `video_render.py --manifest M --output O` or
+// `video_render.py RECORDING CHAPTERS_JSON OUTPUT_MP4`; detect which from its source.
+function rendererMode() {
+  const forced = process.env.LECTURELENS_RENDERER_MODE;
+  if (forced === 'manifest' || forced === 'positional') return forced;
+  try {
+    return fs.readFileSync(RENDERER, 'utf8').includes('--manifest') ? 'manifest' : 'positional';
+  } catch {
+    return 'positional';
+  }
 }
 
 // ---------- jobs ----------
@@ -386,42 +419,56 @@ function recordingWarnings(info) {
 
 // ---------- AdaL prompt ----------
 
+function sceneLines(chapters) {
+  const lines = [];
+  for (const c of chapters) {
+    lines.push('', `Scene ${c.page}: ${c.title} (Source notes · p. ${c.page}), ${c.place}, ${c.era}`);
+    lines.push(`  Narration: ${c.narration}`);
+    lines.push(`  Visual: ${c.visual}`);
+    if (c._asset) lines.push(`  Illustration: ${c._asset}`);
+    const motion = motionPath(c.page);
+    if (motion) lines.push(`  Model orbit: ${motion}`);
+  }
+  return lines;
+}
+
 function buildAdalPrompt(job, chapters) {
   const dir = jobDir(job.job_id);
   const video = path.join(dir, job._internal.video_file);
   const pdf = path.join(dir, 'notes.pdf');
-  const models = modelFixtures();
-  const lines = [];
-  lines.push('LectureLens: AdaL video brief', '');
-  lines.push('Files on this computer:');
-  lines.push(`- Presenter recording (keep the original voice): ${video}`);
-  lines.push(`- Source notes PDF: ${pdf}`);
-  for (const m of models) lines.push(`- Model-orbit fixture: ${m}`);
-  lines.push('');
-  if (chapters.length) {
-    lines.push(`Make a 16:9 MP4 lesson with ${chapters.length} labeled scenes in this order. Show the PDF page label on every scene.`);
-    for (const c of chapters) {
-      lines.push('', `Scene ${c.page}: ${c.title} (PDF page ${c.page}), ${c.place}, ${c.era}`);
-      lines.push(`  Narration: ${c.narration}`);
-      lines.push(`  Visual: ${c.visual}`);
-      if (c._asset) lines.push(`  Illustration: ${c._asset}`);
-    }
-  } else {
-    lines.push('This is a custom PDF, not the Seven Wonders notes. Read it, build one scene per topic, and label each scene with its PDF page number.');
-  }
-  lines.push('', "Keep the presenter's original narration as the soundtrack. Label creative reconstructions and uncertain historical scenes. Export a playable 16:9 MP4.");
 
-  let prompt = lines.join('\n');
-  if (fs.existsSync(PROMPT_FILE)) {
+  // A's brief is written for the Seven Wonders notes; a custom PDF gets a neutral handoff.
+  if (chapters.length && fs.existsSync(PROMPT_FILE)) {
+    const tokens = {
+      VIDEO: video,
+      PDF: pdf,
+      REFERENCES: SAMPLE_DIR,
+      VIDEO_PATH: video,
+      PDF_PATH: pdf,
+      JOB_DIR: dir,
+    };
     const brief = fs
       .readFileSync(PROMPT_FILE, 'utf8')
-      .replaceAll('{{VIDEO_PATH}}', video)
-      .replaceAll('{{PDF_PATH}}', pdf)
-      .replaceAll('{{JOB_DIR}}', dir)
+      .replace(/^﻿/, '')
+      .replace(/\{\{\s*([A-Z_]+)\s*\}\}/g, (whole, name) => tokens[name] ?? whole)
       .trim();
-    prompt += '\n\nCreative direction:\n' + brief;
+    const leftover = brief.match(/\{\{[^}]*\}\}/g);
+    if (leftover) console.warn(`ADAL-VIDEO-PROMPT.md has unfilled placeholders: ${[...new Set(leftover)].join(', ')}`);
+    return [brief, '', '## Scene map (from sample/chapters.json)', ...sceneLines(chapters)].join('\n');
   }
-  return prompt;
+
+  const lines = ['LectureLens: AdaL video brief', '', 'Files on this computer:'];
+  lines.push(`- Presenter recording (keep the original voice): ${video}`);
+  lines.push(`- Source notes PDF: ${pdf}`);
+  if (chapters.length) {
+    for (const m of modelFixtures()) lines.push(`- Model-orbit fixture: ${m}`);
+    lines.push('', `Make a 16:9 MP4 lesson with ${chapters.length} labeled scenes in this order. Show the PDF page label on every scene.`);
+    lines.push(...sceneLines(chapters));
+  } else {
+    lines.push('', 'This is a custom PDF, not the Seven Wonders notes. Read it, build one scene per topic, and label each scene with its PDF page number.');
+  }
+  lines.push('', "Keep the presenter's original narration as the soundtrack. Label creative reconstructions and uncertain historical scenes. Export a playable 16:9 H.264/AAC MP4 and give its file path so it can be imported into LectureLens.");
+  return lines.join('\n');
 }
 
 // ---------- local preview (Person C's renderer) ----------
@@ -429,22 +476,28 @@ function buildAdalPrompt(job, chapters) {
 function startRender(job, chapters) {
   const dir = jobDir(job.job_id);
   const output = path.join(dir, 'preview.mp4');
+  const video = path.join(dir, job._internal.video_file);
+  const renderChapters = rendererChapters(chapters);
   const manifestPath = path.join(dir, 'manifest.json');
+  const chaptersPath = path.join(dir, 'render-chapters.json');
   const manifest = {
     job_id: job.job_id,
-    video: path.join(dir, job._internal.video_file),
+    video,
     pdf: path.join(dir, 'notes.pdf'),
     output,
     width: 1280,
     height: 720,
-    chapters: chapters.map(({ _asset, ...c }) => ({ ...c, asset_path: _asset })),
+    chapters: renderChapters,
     models: modelFixtures(),
-    models_dir: path.join(ROOT, 'sample', 'models'),
+    models_dir: MODELS_DIR,
     ffmpeg: tools.ffmpeg.path,
     ffprobe: tools.ffprobe.path,
   };
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(chaptersPath, JSON.stringify(renderChapters, null, 2));
   fs.rmSync(output, { force: true });
+  const mode = rendererMode();
+  const args = mode === 'manifest' ? [RENDERER, '--manifest', manifestPath, '--output', output] : [RENDERER, video, chaptersPath, output];
 
   const startedAt = Date.now();
   job.status = 'rendering';
@@ -452,7 +505,8 @@ function startRender(job, chapters) {
   job._internal.render_started_at = startedAt;
 
   const log = fs.createWriteStream(path.join(dir, 'render.log'));
-  const child = spawn(tools.python, ['-u', RENDERER, '--manifest', manifestPath, '--output', output], {
+  log.write(`renderer mode: ${mode}\n${[tools.python, '-u', ...args].join(' ')}\n\n`);
+  const child = spawn(tools.python, ['-u', ...args], {
     cwd: ROOT,
     windowsHide: true,
     env: {
@@ -490,7 +544,7 @@ function startRender(job, chapters) {
       }
       job.status = 'ready';
       const warn = info?.ok && !info.hasAudio ? ' Warning: the preview has no audio track.' : '';
-      job.message = `Local preview ready${info?.duration ? ` (${fmtSeconds(info.duration)})` : ''}.${warn}`;
+      job.message = `Local preview ready${info?.duration ? ` (${fmtSeconds(info.duration)})` : ''}. This is the fallback cut, not the AdaL export.${warn}`;
     } else {
       const last = tail.trim().split(/\r?\n/).slice(-3).join(' | ');
       job.status = 'error';
@@ -745,6 +799,7 @@ async function route(req, res) {
       ffmpeg: tools.ffmpeg,
       ffprobe: tools.ffprobe,
       renderer: fs.existsSync(RENDERER),
+      renderer_mode: fs.existsSync(RENDERER) ? rendererMode() : null,
       frontend: fs.existsSync(path.join(STATIC_DIR, 'index.html')),
       sample: fs.existsSync(path.join(SAMPLE_DIR, 'chapters.json')),
       adal_prompt_brief: fs.existsSync(PROMPT_FILE),
@@ -763,6 +818,11 @@ async function route(req, res) {
     return handleJobFile(req, res, match[1], decodeURIComponent(match[2]), url.searchParams.has('download'));
   }
   if (p.startsWith('/sample/')) return handleStatic(req, res, p.slice('/sample'.length), SAMPLE_DIR);
+  if (p.startsWith('/static/')) return handleStatic(req, res, p.slice('/static'.length), STATIC_DIR);
+  if (p === '/favicon.ico' && !fs.existsSync(path.join(STATIC_DIR, 'favicon.ico'))) {
+    res.writeHead(204);
+    return res.end();
+  }
   return handleStatic(req, res, p, STATIC_DIR, { fallback: p === '/' || p === '/index.html' ? fallbackPage : null });
 }
 
