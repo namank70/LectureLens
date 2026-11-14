@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LectureLens Upload</title>
+  <style>
+    :root { --bg: #f7f3ea; --card: #fffdf8; --ink: #24231f; --muted: #6b675d; --accent: #5b6b3a;
+            --track: #e8e2d2; --line: #ddd6c6; --ok: #2f6b3a; --err: #a33a2a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+           background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { width: 100%; max-width: 480px; display: grid; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; display: grid; gap: 20px; }
+    h1 { margin: 0; font-size: 1.4rem; }
+    h2 { margin: 0; font-size: 1.1rem; }
+    p.hint { margin: -12px 0 0; color: var(--muted); font-size: .9rem; }
+    label { display: grid; gap: 6px; font-weight: 600; }
+    label small { font-weight: 400; color: var(--muted); }
+    input[type=file] { font: inherit; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: #fff; }
+    input:disabled { opacity: .6; }
+    button { font: inherit; font-weight: 600; padding: 12px; border: 0; border-radius: 8px;
+             background: var(--accent); color: #fff; cursor: pointer; }
+    button:disabled { opacity: .7; cursor: progress; }
+    .status { margin: 0; font-size: .95rem; min-height: 1.5em; overflow-wrap: anywhere; }
+    .ok { color: var(--ok); } .err { color: var(--err); }
+
+    /* Progress bar */
+    .progress { display: grid; gap: 8px; }
+    .progress-head { display: flex; justify-content: space-between; gap: 12px; font-size: .9rem; }
+    .progress-head strong { font-variant-numeric: tabular-nums; }
+    .track { height: 14px; border-radius: 999px; background: var(--track); overflow: hidden; position: relative; }
+    .fill { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .25s ease; }
+    .fill.done { background: var(--ok); } .fill.error { background: var(--err); }
+    .track.indeterminate .fill { width: 35% !important; position: absolute; animation: slide 1.4s ease-in-out infinite; }
+    @keyframes slide { from { left: -35%; } to { left: 100%; } }
+    @media (prefers-reduced-motion: reduce) { .track.indeterminate .fill { animation: none; left: 0; width: 100% !important; opacity: .5; } }
+    .progress-sub { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; }
+    ol.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: .9rem; }
+    ol.steps li { color: var(--muted); display: flex; gap: 8px; }
+    ol.steps li::before { content: "○"; width: 1em; }
+    ol.steps li.active { color: var(--ink); font-weight: 600; } ol.steps li.active::before { content: "●"; color: var(--accent); }
+    ol.steps li.done { color: var(--ok); } ol.steps li.done::before { content: "✓"; }
+    ol.steps li.failed { color: var(--err); } ol.steps li.failed::before { content: "✕"; }
+
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; min-width: 0; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+    .row button { padding: 10px 14px; }
+    .badge { justify-self: start; padding: 2px 12px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: #ece6d6; }
+    .badge.done { background: #dcebd9; color: var(--ok); } .badge.failed { background: #f3dcd7; color: var(--err); }
+    video { width: 100%; border-radius: 8px; background: #000; }
+    a.download { font-weight: 600; color: var(--accent); }
+    a.back { justify-self: start; font-size: .9rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+    a.back:hover { text-decoration: underline; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="index.html">← Back to studio</a>
+    <form id="upload-form" class="card" novalidate>
+      <h1>Upload lesson files</h1>
+      <p class="hint">Add your recording and your notes, then submit. The lesson is queued once both files are uploaded.</p>
+
+      <label>
+        Video <small>MP4 only</small>
+        <input type="file" id="video" name="video" accept="video/mp4,.mp4" required>
+      </label>
+
+      <label>
+        Notes <small>PDF only</small>
+        <input type="file" id="pdf" name="pdf" accept="application/pdf,.pdf" required>
+      </label>
+
+      <button type="submit" id="submit">Submit</button>
+
+      <div id="upload-progress" class="progress" hidden>
+        <div class="progress-head"><span id="up-label">Starting…</span><strong id="up-pct">0%</strong></div>
+        <div class="track" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="up-track">
+          <div class="fill" id="up-fill"></div>
+        </div>
+        <div class="progress-sub" id="up-sub"></div>
+        <ol class="steps" id="up-steps">
+          <li data-step="video-link">Prepare video upload</li>
+          <li data-step="video">Upload video</li>
+          <li data-step="notes-link">Prepare notes upload</li>
+          <li data-step="notes">Upload notes</li>
+        </ol>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section id="job" class="card" aria-live="polite">
+      <h2>Lesson status</h2>
+      <div class="row">
+        <input id="job-id" placeholder="Job ID" autocomplete="off" spellcheck="false" aria-label="Job ID">
+        <button type="button" id="check">Check</button>
+      </div>
+      <span id="job-badge" class="badge" hidden></span>
+      <div id="job-progress" class="progress" hidden>
+        <div class="progress-head"><span id="job-label">AdaL is working…</span><strong id="job-pct"></strong></div>
+        <div class="track indeterminate" role="progressbar" aria-label="Lesson processing progress" aria-valuemin="0" aria-valuemax="100" id="job-track">
+          <div class="fill" id="job-fill"></div>
+        </div>
+        <div class="progress-sub" id="job-sub"></div>
+      </div>
+      <p id="job-status" class="status"></p>
+      <video id="result-video" controls playsinline hidden></video>
+      <a id="result-link" class="download" target="_blank" rel="noopener" hidden>Open / download video</a>
+    </section>
+  </main>
+
+  <script>
+    // ==== Configuration ===================================================================
+    // Upload API (backend team, AWS us-east-2). If calls fail to resolve, check the stack's ApiUrl output.
+    const API = "https://ugm369dj9a.execute-api.us-east-2.amazonaws.com";
+
+    // LectureLens queue server (aws/server.js), which runs on the computer where AdaL is installed.
+    // Default is 127.0.0.1:8080, so this page must run on that same computer. If the page is opened
+    // anywhere else, replace QUEUE_SERVER with the tunnel or network address of that machine.
+    const QUEUE_SERVER = "http://127.0.0.1:8080";
+    const JOB_STATUS_URL = QUEUE_SERVER + "/jobs/{job_id}/output";
+
+    // Contract for GET /jobs/{job_id}/output (status is always present):
+    //   404 { status: "notfound" }                          -> not received yet (up to ~20 s after upload) or lost on restart
+    //   200 { status: "pending", message, input }           -> waiting or AdaL is generating; message = latest progress text
+    //   200 { status: "done", input, output: { bucket, key, url, expires_in: 3600 } } -> url is a fresh presigned link
+    //   200 { status: "failed", message, input }            -> message = error text
+    // The video is loaded ONLY on "done". Extra codes below are tolerated in case the server changes later.
+    const NOT_READY_CODES = [202, 409, 423, 425, 503];
+    const DONE_STATES = /^(done|complete|completed|success|succeeded|finished|ready)$/;
+    const FAILED_STATES = /^(failed|failure|error|cancelled|canceled)$/;
+
+    const POLL_START_MS = 5000;              // first check interval
+    const POLL_MAX_MS = 15000;               // slow down to this while a long job runs
+    const POLL_TIMEOUT_MS = 30 * 60 * 1000;  // give up after 30 min (matches the queue visibility timeout)
+    const NEW_JOB_GRACE_MS = 60 * 1000;      // a notfound within 1 min of upload means "not picked up yet" (SQS long-poll is 20 s)
+
+    // ==== Small helpers ===================================================================
+    const $ = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    function fmtBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1024 ** 2) return (n / 1024).toFixed(0) + " KB";
+      if (n < 1024 ** 3) return (n / 1024 ** 2).toFixed(1) + " MB";
+      return (n / 1024 ** 3).toFixed(2) + " GB";
+    }
+    function fmtTime(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60), s = sec % 60;
+      return m ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+    }
+
+    // ==== Upload progress UI ==============================================================
+    const form = $("upload-form"), videoInput = $("video"), pdfInput = $("pdf"), button = $("submit");
+    const statusEl = $("status");
+    const up = { box: $("upload-progress"), label: $("up-label"), pct: $("up-pct"), track: $("up-track"),
+                 fill: $("up-fill"), sub: $("up-sub"), steps: $("up-steps") };
+
+    function setStatus(text, kind = "") { statusEl.textContent = text; statusEl.className = "status " + kind; }
+
+    function setUploadProgress(percent, label, sub = "") {
+      const p = Math.max(0, Math.min(100, percent));
+      up.fill.style.width = p + "%";
+      up.pct.textContent = Math.floor(p) + "%";
+      up.track.setAttribute("aria-valuenow", String(Math.floor(p)));
+      if (label) up.label.textContent = label;
+      up.sub.textContent = sub;
+      button.textContent = p < 100 ? `Uploading… ${Math.floor(p)}%` : "Submit";
+    }
+
+    function setStep(name, state) { // state: active | done | failed
+      const li = up.steps.querySelector(`[data-step="${name}"]`);
+      li.className = state;
+    }
+
+    function resetUploadProgress() {
+      up.box.hidden = false;
+      up.fill.className = "fill";
+      up.steps.querySelectorAll("li").forEach((li) => (li.className = ""));
+      setUploadProgress(0, "Starting…");
+    }
+
+    // ==== Upload API calls ================================================================
+    // Steps 1 and 3: ask the API for a pre-signed S3 upload link.
+    async function getUploadLink(path) {
+      const res = await fetch(API + path, { method: "POST" });
+      if (!res.ok) throw new Error(`Could not get an upload link (${res.status}).`);
+      return res.json();
+    }
+
+    // Steps 2 and 4: PUT the raw file (not FormData) with the exact Content-Type the link was signed for.
+    // XMLHttpRequest (not fetch) because only XHR reports upload progress.
+    function putFile(url, file, contentType, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+        xhr.setRequestHeader("Content-Type", contentType);
+        xhr.upload.onprogress = (e) => onProgress(e.loaded, e.lengthComputable ? e.total : file.size);
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve()
+          : reject(new Error(xhr.status === 403
+              ? "Upload refused (403). The link may have expired; please try again."
+              : `Upload failed (${xhr.status}).`));
+        xhr.onerror = () => reject(new Error("Network error during upload. Check your connection and try again."));
+        xhr.send(file);
+      });
+    }
+
+    function isMp4(f) { return f.type === "video/mp4" || /\.mp4$/i.test(f.name); }
+    function isPdf(f) { return f.type === "application/pdf" || /\.pdf$/i.test(f.name); }
+
+    // The bar is weighted by bytes: link requests get a small fixed slice, the rest follows real upload bytes.
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const video = videoInput.files[0], pdf = pdfInput.files[0];
+      if (!video || !pdf) return setStatus("Please choose both a video and a PDF.", "err");
+      if (!isMp4(video)) return setStatus("The video must be an MP4 file.", "err");
+      if (!isPdf(pdf)) return setStatus("The notes must be a PDF file.", "err");
+
+      const LINK_SLICE = 2;                                   // % of the bar for each link request
+      const bytesTotal = video.size + pdf.size;
+      const videoSlice = (100 - 2 * LINK_SLICE) * (video.size / bytesTotal);
+      const notesSlice = (100 - 2 * LINK_SLICE) - videoSlice;
+      let current = "video-link";
+      const t0 = performance.now();
+
+      const uploadSub = (sent, total, base) => {
+        const elapsed = (performance.now() - t0) / 1000;
+        const speed = (base + sent) / Math.max(elapsed, 0.001);
+        const left = (bytesTotal - base - sent) / Math.max(speed, 1);
+        return `${fmtBytes(base + sent)} of ${fmtBytes(bytesTotal)} · ${fmtBytes(speed)}/s` +
+               (sent > 0 && left > 1 ? ` · about ${fmtTime(left)} left` : "");
+      };
+
+      button.disabled = true; videoInput.disabled = true; pdfInput.disabled = true;
+      setStatus("");
+      resetUploadProgress();
+      try {
+        setStep("video-link", "active");
+        setUploadProgress(0.5, "Preparing video upload…");
+        const v = await getUploadLink("/uploads/video");
+        setStep("video-link", "done");
+
+        current = "video";
+        setStep("video", "active");
+        setUploadProgress(LINK_SLICE, "Uploading video…", uploadSub(0, video.size, 0));
+        await putFile(v.upload_url, video, v.content_type || "video/mp4", (sent, total) => {
+          setUploadProgress(LINK_SLICE + videoSlice * (sent / total), "Uploading video…", uploadSub(sent, total, 0));
+        });
+        setStep("video", "done");
+
+        // New link requested only now, so it can't expire (15 min) while the video uploads.
+        current = "notes-link";
+        setStep("notes-link", "active");
+        setUploadProgress(LINK_SLICE + videoSlice, "Preparing notes upload…", uploadSub(0, 0, video.size));
+        const n = await getUploadLink(`/uploads/notes?job_id=${encodeURIComponent(v.job_id)}`);
+        setStep("notes-link", "done");
+
+        current = "notes";
+        setStep("notes", "active");
+        const base = 2 * LINK_SLICE + videoSlice;
+        await putFile(n.upload_url, pdf, n.content_type || "application/pdf", (sent, total) => {
+          setUploadProgress(base + notesSlice * (sent / total), "Uploading notes…", uploadSub(sent, total, video.size));
+        });
+        setStep("notes", "done");
+
+        up.fill.classList.add("done");
+        setUploadProgress(100, "Upload complete", `${fmtBytes(bytesTotal)} uploaded in ${fmtTime((performance.now() - t0) / 1000)}`);
+        setStatus(`Uploaded! Job ID: ${v.job_id}`, "ok");
+        form.reset();
+        watchJob(v.job_id, { justUploaded: true });
+      } catch (err) {
+        setStep(current, "failed");
+        up.fill.classList.add("error");
+        up.label.textContent = "Upload stopped";
+        button.textContent = "Try again";
+        setStatus(err.message || "Something went wrong. Please try again.", "err");
+      } finally {
+        button.disabled = false; videoInput.disabled = false; pdfInput.disabled = false;
+        if (button.textContent.startsWith("Uploading")) button.textContent = "Submit";
+      }
+    });
+
+    // ==== Job status (GET) ================================================================
+    const jobIdInput = $("job-id"), checkBtn = $("check"), badge = $("job-badge"), jobStatusEl = $("job-status");
+    const jp = { box: $("job-progress"), label: $("job-label"), pct: $("job-pct"), track: $("job-track"),
+                 fill: $("job-fill"), sub: $("job-sub") };
+    const resultVideo = $("result-video"), resultLink = $("result-link");
+
+    const LABELS = { queued: "Waiting for server", processing: "In progress", done: "Ready", failed: "Failed" };
+
+    // Turn any backend response into one of: not_ready | done | failed | not_found.
+    // A finished video is ONLY accepted when the backend explicitly says the job is done.
+    async function fetchJob(jobId) {
+      const res = await fetch(JOB_STATUS_URL.replace("{job_id}", encodeURIComponent(jobId)), { cache: "no-store" });
+      const retryAfter = Number(res.headers.get("Retry-After")) || null; // needs Access-Control-Expose-Headers
+      let data = {};
+      try { data = await res.json(); } catch { /* empty or non-JSON body */ }
+      const raw = String(data.status || "").toLowerCase();
+      const info = {
+        raw, retryAfter,
+        progress: Number.isFinite(Number(data.progress)) ? Number(data.progress) : null, // not sent today
+        stage: data.message || null,                   // pending: latest AdaL progress text
+        eta: Number(data.eta_seconds) || null,         // not sent today
+        url: (data.output && data.output.url) || null, // done: fresh presigned S3 link (1 hour)
+        error: data.message || null,                   // failed: error text
+      };
+
+      if (res.status === 404 || raw === "notfound") return { kind: "not_found", ...info };
+      if (NOT_READY_CODES.includes(res.status)) return { kind: "not_ready", ...info };
+      if (!res.ok) { const e = new Error(`Status check failed (${res.status}).`); e.retryAfter = retryAfter; throw e; }
+      if (FAILED_STATES.test(raw)) return { kind: "failed", ...info };
+      if (DONE_STATES.test(raw)) return { kind: "done", ...info };
+      // "pending", or any status we don't recognise: keep waiting, never assume it's finished.
+      return { kind: "not_ready", ...info };
+    }
+
+    function setBadge(kind) {
+      badge.hidden = false;
+      badge.textContent = LABELS[kind];
+      badge.className = "badge " + (kind === "done" ? "done" : kind === "failed" ? "failed" : "");
+    }
+    function setJobMsg(text, kind = "") { jobStatusEl.textContent = text; jobStatusEl.className = "status " + kind; }
+
+    function showProcessing(job, started, nextMs) {
+      jp.box.hidden = false;
+      const hasPct = job.progress !== null && job.progress >= 0;
+      jp.track.classList.toggle("indeterminate", !hasPct);
+      jp.fill.className = "fill";
+      jp.fill.style.width = hasPct ? Math.min(100, job.progress) + "%" : "";
+      jp.pct.textContent = hasPct ? Math.floor(job.progress) + "%" : "";
+      if (hasPct) jp.track.setAttribute("aria-valuenow", String(Math.floor(job.progress)));
+      else jp.track.removeAttribute("aria-valuenow");
+      jp.label.textContent = job.stage || (job.queued ? "Waiting for the server to pick up your job…" : "AdaL is making your lesson…");
+      const parts = [`Elapsed ${fmtTime((Date.now() - started) / 1000)}`];
+      if (job.eta) parts.push(`about ${fmtTime(job.eta)} left`);
+      parts.push(`next check in ${Math.round(nextMs / 1000)}s`);
+      jp.sub.textContent = parts.join(" · ");
+    }
+
+    function finishProcessing(state) { // state: done | failed
+      jp.track.classList.remove("indeterminate");
+      jp.fill.className = "fill " + (state === "done" ? "done" : "error");
+      jp.fill.style.width = "100%";
+      jp.pct.textContent = state === "done" ? "100%" : "";
+      jp.label.textContent = state === "done" ? "Finished" : "Stopped";
+      jp.sub.textContent = "";
+    }
+
+    function resetResult() {
+      badge.hidden = true; jp.box.hidden = true; setJobMsg("");
+      resultVideo.onerror = null; // detach the previous job's handler before clearing the source
+      resultVideo.hidden = true; resultVideo.removeAttribute("src"); resultVideo.load(); resultLink.hidden = true;
+    }
+
+    let pollRun = 0; // bumps when a new job is watched, so the old loop stops
+
+    async function watchJob(jobId, { justUploaded = false } = {}) {
+      jobId = String(jobId).trim();
+      resetResult();
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(jobId)) return setJobMsg("That doesn't look like a valid job ID.", "err");
+      jobIdInput.value = jobId;
+      const run = ++pollRun;
+      const started = Date.now();
+      let interval = POLL_START_MS;
+      let refreshedLink = false;
+      setJobMsg("Checking status…");
+
+      while (run === pollRun) {
+        let job;
+        try {
+          job = await fetchJob(jobId);
+        } catch (err) {
+          if (run !== pollRun) return;
+          const wait = (err.retryAfter || 0) * 1000 || interval * 2;
+          setJobMsg(`${err.message || "Could not reach the status service."} Retrying in ${Math.round(wait / 1000)}s…`, "err");
+          await sleep(wait); continue;
+        }
+        if (run !== pollRun) return;
+
+        if (job.kind === "not_found") {
+          // Right after an upload the backend may not have registered the job yet: treat as "queued".
+          if (justUploaded && Date.now() - started < NEW_JOB_GRACE_MS) job = { ...job, kind: "not_ready", queued: true };
+          else { jp.box.hidden = true; return setJobMsg("Job not found. Check the ID. If you just uploaded, wait a few seconds and press Check. The server also forgets jobs when it restarts.", "err"); }
+        }
+
+        if (job.kind === "not_ready") {
+          if (Date.now() - started > POLL_TIMEOUT_MS) {
+            return setJobMsg("Still processing after 30 minutes. Press Check to look again later.", "err");
+          }
+          const next = job.retryAfter ? job.retryAfter * 1000 : interval;
+          setBadge(job.queued ? "queued" : "processing");
+          showProcessing(job, started, next);
+          setJobMsg("Your video isn't ready yet. You can leave this page open; it checks automatically.");
+          await sleep(next);
+          interval = Math.min(Math.round(interval * 1.5), POLL_MAX_MS); // back off gently on long jobs
+          continue;
+        }
+
+        if (job.kind === "failed") {
+          setBadge("failed"); finishProcessing("failed");
+          return setJobMsg(job.error ? `Processing failed: ${job.error}` : "Processing failed.", "err");
+        }
+
+        // kind === "done": only now do we load the video.
+        setBadge("done"); finishProcessing("done");
+        if (!job.url) return setJobMsg("The lesson is finished, but no video link was returned.", "err");
+        resultVideo.onerror = async () => {
+          // Pre-signed links expire. Ask the status endpoint once for a fresh link.
+          if (refreshedLink || run !== pollRun) return setJobMsg("The video link didn't load. Press Check to get a fresh link.", "err");
+          refreshedLink = true;
+          try {
+            const again = await fetchJob(jobId);
+            if (again.kind === "done" && again.url && again.url !== job.url) { resultVideo.src = again.url; resultLink.href = again.url; }
+            else setJobMsg("The video link didn't load. Press Check to get a fresh link.", "err");
+          } catch { setJobMsg("The video link didn't load. Press Check to get a fresh link.", "err"); }
+        };
+        resultVideo.src = job.url; resultVideo.hidden = false;
+        resultLink.href = job.url; resultLink.hidden = false;
+        return setJobMsg("Your lesson video is ready.", "ok");
+      }
+    }
+
+    checkBtn.addEventListener("click", () => watchJob(jobIdInput.value));
+    jobIdInput.addEventListener("keydown", (e) => { if (e.key === "Enter") watchJob(jobIdInput.value); });
+  </script>
+</body>
+</html>
