@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171713">
+  <meta name="description" content="Turn a recorded explanation and sourced notes into a cinematic history lesson.">
+  <title>LectureLens · Seven Wonders Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="LectureLens home"><span class="brand-mark" aria-hidden="true"></span>LectureLens</a>
+      <nav aria-label="Studio navigation">
+        <a href="#studio">Studio</a>
+        <a href="#storyboard">Storyboard</a>
+      </nav>
+      <a class="repo-link" href="https://github.com/namank70/LectureLens" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow">THE ANCIENT WORLD</p>
+        <h1 id="page-title">Seven Wonders.<br><em>Step into history.</em></h1>
+        <p class="intro">Pair your camera recording with a source PDF to storyboard a short lesson that takes your presenter into the Ancient World.</p>
+        <a class="button primary" href="#studio">Start a project <span aria-hidden="true">↓</span></a>
+      </div>
+      <figure class="hero-frame">
+        <img id="hero-image" src="/sample/wonder-1.png" alt="Illustrated view of the Great Pyramid of Giza">
+        <figcaption><span>01 / 07</span> <span>Giza, Egypt</span></figcaption>
+      </figure>
+    </section>
+
+    <section id="studio" class="section" aria-labelledby="studio-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow">INPUTS</p><h2 id="studio-heading">Set up your lesson</h2></div>
+        <div class="sample-links" id="sample-links" hidden>
+          <a id="sample-pdf" href="#" target="_blank" rel="noopener">Sample notes PDF <span aria-hidden="true">↗</span></a>
+          <a id="sample-script" href="#" target="_blank" rel="noopener">Recording script <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <form id="project-form" class="panel">
+        <div class="upload-grid">
+          <div class="upload-card">
+            <div class="upload-icon" aria-hidden="true">▤</div>
+            <div class="upload-main">
+              <label for="pdf-input">Study notes</label>
+              <p id="pdf-detail">Choose the illustrated Seven Wonders PDF or upload your own.</p>
+              <div class="upload-actions">
+                <input class="visually-hidden file-input" type="file" id="pdf-input" name="pdf" accept="application/pdf,.pdf">
+                <label for="pdf-input" class="button quiet">Choose PDF</label>
+                <button class="text-button" type="button" id="use-sample" disabled>Use sample notes</button>
+              </div>
+            </div>
+          </div>
+          <div class="upload-card">
+            <div class="upload-icon camera" aria-hidden="true">▣</div>
+            <div class="upload-main">
+              <label for="video-input">Camera recording</label>
+              <p id="video-detail">Use a 40–50 second landscape MP4 with clear audio. H.264/AAC works best for browser playback.</p>
+              <div class="upload-actions">
+                <input class="visually-hidden file-input" type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm">
+                <label for="video-input" class="button quiet">Choose video</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-footer">
+          <p id="project-status" class="status-text" role="status" aria-live="polite">Choose both inputs to prepare your AdaL handoff.</p>
+          <button class="button primary" type="submit" id="prepare-project">Prepare project <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+      <details class="panel recording-preview" id="recording-preview" hidden>
+        <summary>Preview your source recording</summary>
+        <video id="source-video" controls playsinline preload="metadata"></video>
+        <p id="source-playback-status" class="status-text" role="status" aria-live="polite"></p>
+      </details>
+    </section>
+
+    <section id="storyboard" class="section" aria-labelledby="storyboard-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow" id="storyboard-label">SAMPLE STORYBOARD</p><h2 id="storyboard-heading">Journey through the wonders</h2></div>
+        <div class="chapter-controls" id="chapter-controls" hidden>
+          <button id="previous-chapter" type="button" aria-label="Previous chapter">←</button>
+          <button id="next-chapter" type="button" aria-label="Next chapter">→</button>
+        </div>
+      </div>
+      <div class="panel storyboard-panel" id="storyboard-panel">
+        <p id="storyboard-status" class="status-text" role="status">Loading the sample storyboard…</p>
+        <div id="chapter-view" class="chapter-view" hidden>
+          <div class="chapter-art"><img id="chapter-image" alt=""></div>
+          <div class="chapter-content" aria-live="polite">
+            <p class="eyebrow" id="chapter-place"></p>
+            <h3 id="chapter-title"></h3>
+            <blockquote id="chapter-narration"></blockquote>
+            <p id="chapter-visual"></p>
+            <a class="source-link" id="chapter-source" href="#" target="_blank" rel="noopener"></a>
+          </div>
+        </div>
+        <div class="chapter-list" id="chapter-list" aria-label="Storyboard chapters" hidden></div>
+      </div>
+    </section>
+
+    <section id="production" class="section" aria-labelledby="production-heading" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">PRODUCTION</p><h2 id="production-heading" tabindex="-1">Bring the lesson to life</h2></div>
+      </div>
+      <div class="production-grid">
+        <article class="panel production-card">
+          <h3>AdaL Video Producer</h3>
+          <p>Open AdaL in this project folder and paste the prompt. Attach the recording and notes PDF from the paths in the prompt. Then export the finished MP4 and import it here.</p>
+          <p class="creative-note">The creative brief calls for a period-guide character, time-travel cuts, and historically labeled reconstructions.</p>
+          <textarea id="adal-prompt" aria-label="AdaL Video Producer prompt" readonly rows="5"></textarea>
+          <div class="upload-actions">
+            <button type="button" id="copy-prompt" class="button primary">Copy AdaL prompt</button>
+            <input class="visually-hidden file-input" type="file" id="import-video" accept="video/mp4,.mp4">
+            <label class="button quiet" for="import-video">Import AdaL MP4</label>
+          </div>
+          <p id="copy-status" class="status-text" role="status" aria-live="polite"></p>
+        </article>
+        <article class="panel production-card">
+          <h3>Playback</h3>
+          <p id="playback-detail">Check the timing with a local preview using the original recording and available page art.</p>
+          <button type="button" id="render-preview" class="button quiet">Render local preview</button>
+          <p id="render-status" class="status-text" role="status" aria-live="polite"></p>
+          <div id="render-result" class="render-result" hidden>
+            <video id="output-video" controls playsinline preload="metadata"></video>
+            <a class="source-link" id="download-render" href="#" download>Download MP4 <span aria-hidden="true">↓</span></a>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div class="shell">LectureLens <span aria-hidden="true">/</span> Seven Wonders of the Ancient World</div></footer>
+</body>
+</html>
