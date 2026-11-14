@@ -17,11 +17,10 @@
     <div class="shell header-inner">
       <a class="brand" href="/" aria-label="LectureLens home"><span class="brand-mark" aria-hidden="true"></span>LectureLens</a>
       <nav aria-label="Studio navigation">
-        <a href="#studio">Studio</a>
         <a href="#example">Example</a>
       </nav>
       <div style="justify-self:end;display:flex;align-items:center;gap:.5rem;white-space:nowrap">
-        <a class="button primary" href="upload.html" style="min-height:36px;padding:.45rem .9rem;gap:.4rem">Upload files <span aria-hidden="true">→</span></a>
+        <a class="button primary" href="upload.html" data-open-upload style="min-height:36px;padding:.45rem .9rem;gap:.4rem">Upload files</a>
         <a class="repo-link" href="https://github.com/namank70/LectureLens" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
       </div>
     </div>
@@ -32,7 +31,7 @@
       <div class="hero-copy">
         <h1 id="page-title">Turn your recording into a <em>visual lesson.</em></h1>
         <p class="intro">Upload a PDF and a video of your explanation. AdaL uses your notes to guide the visuals and keeps your original narration.</p>
-        <a class="button primary" href="#studio">Create a lesson <span aria-hidden="true">↓</span></a>
+        <a class="button primary" href="upload.html" data-open-upload>Create a lesson</a>
       </div>
       <div class="workflow" aria-label="Lesson workflow">
         <div class="workflow-scene" aria-hidden="true">
@@ -57,82 +56,6 @@
       </div>
     </section>
 
-    <section id="studio" class="section" aria-labelledby="studio-heading">
-      <div class="section-heading">
-        <h2 id="studio-heading">Set up your lesson</h2>
-      </div>
-      <form id="project-form" class="panel">
-        <div class="upload-grid">
-          <div class="upload-card">
-            <div class="upload-icon" aria-hidden="true"><span class="document-icon"></span></div>
-            <div class="upload-main">
-              <label class="upload-label" id="source-notes-label" for="pdf-input">Source notes</label>
-              <p id="pdf-detail">Drop a PDF with your key points, references, or illustrations.</p>
-              <div class="upload-actions">
-                <input class="visually-hidden file-input" type="file" id="pdf-input" name="pdf" accept="application/pdf,.pdf" aria-labelledby="source-notes-label" aria-describedby="pdf-detail">
-                <label for="pdf-input" class="button quiet">Choose PDF</label>
-              </div>
-            </div>
-          </div>
-          <div class="upload-card">
-            <div class="upload-icon" aria-hidden="true"><span class="camera-icon"></span></div>
-            <div class="upload-main">
-              <label class="upload-label" id="camera-recording-label" for="video-input">Camera recording</label>
-              <p id="video-detail">Drop a short recording with clear narration. MP4 works best for playback.</p>
-              <div class="upload-actions">
-                <input class="visually-hidden file-input" type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" aria-labelledby="camera-recording-label" aria-describedby="video-detail">
-                <label for="video-input" class="button quiet">Choose video</label>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="form-footer">
-          <p id="project-status" class="status-text" role="status" aria-live="polite">Add both files to continue.</p>
-          <button class="button primary" type="submit" id="prepare-project"><span id="prepare-label">Prepare lesson</span> <span aria-hidden="true">→</span></button>
-        </div>
-      </form>
-      <details class="panel recording-preview" id="recording-preview" hidden>
-        <summary>Preview your source recording</summary>
-        <video id="source-video" controls playsinline preload="metadata"></video>
-        <p id="source-playback-status" class="status-text" role="status" aria-live="polite"></p>
-      </details>
-    </section>
-
-    <section id="production" class="section" aria-labelledby="production-heading" hidden>
-      <div class="section-heading">
-        <h2 id="production-heading" tabindex="-1">Produce and review</h2>
-      </div>
-      <div class="production-stack">
-        <article class="panel production-card">
-          <h3>Lesson video</h3>
-          <p id="playback-detail"></p>
-          <progress class="production-progress" id="generation-progress" aria-label="Video production in progress" hidden></progress>
-          <p id="render-status" class="status-text" role="status" aria-live="polite"></p>
-          <div class="upload-actions" id="video-actions" hidden>
-            <button type="button" id="retry-generation" class="button primary" hidden>Retry generation</button>
-            <button type="button" id="render-preview" class="button quiet" hidden>Render local preview</button>
-          </div>
-          <div id="render-result" class="render-result" hidden>
-            <p class="video-output-label" id="video-output-label"></p>
-            <video id="output-video" controls playsinline preload="metadata"></video>
-            <p id="output-playback-status" class="status-text" role="status" aria-live="polite"></p>
-            <a class="source-link" id="download-render" href="#" download>Download MP4 <span aria-hidden="true">↓</span></a>
-          </div>
-        </article>
-        <details class="panel production-card" id="manual-production">
-          <summary>Open AdaL and import an export manually</summary>
-          <p>Open AdaL in this project folder. Attach the recording and notes from the paths in the prompt, then paste the prompt. Export the finished lesson as an MP4 and import it here.</p>
-          <textarea id="adal-prompt" aria-label="AdaL Video Producer prompt" readonly rows="5"></textarea>
-          <div class="upload-actions">
-            <button type="button" id="copy-prompt" class="button quiet">Copy AdaL prompt</button>
-            <input class="visually-hidden file-input" type="file" id="import-video" accept="video/mp4,.mp4">
-            <label class="button quiet" for="import-video">Import AdaL MP4</label>
-          </div>
-          <p id="copy-status" class="status-text" role="status" aria-live="polite"></p>
-        </details>
-      </div>
-    </section>
-
     <section id="example" class="section example" aria-labelledby="example-heading">
       <div class="example-copy">
         <p class="eyebrow">EXAMPLE LESSON</p>
@@ -140,7 +63,6 @@
         <p>Explore an illustrated source PDF, a short recording script, and a storyboard with links to each source page.</p>
         <div class="sample-links" id="sample-links" hidden>
           <button class="button quiet" type="button" id="view-sample" disabled>View storyboard</button>
-          <button class="text-button" type="button" id="use-sample" disabled>Use sample notes in project</button>
           <a id="sample-pdf" href="#" target="_blank" rel="noopener">Sample notes PDF <span aria-hidden="true">↗</span></a>
           <a id="sample-script" href="#" target="_blank" rel="noopener">Recording script <span aria-hidden="true">↗</span></a>
         </div>
@@ -172,6 +94,14 @@
       </div>
     </section>
   </main>
+
+  <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-dialog-title">
+    <div class="upload-dialog-head">
+      <h2 id="upload-dialog-title">Create a lesson</h2>
+      <button type="button" class="button quiet" id="upload-dialog-close">Close</button>
+    </div>
+    <iframe id="upload-frame" title="Upload a recording and notes, and see past lessons"></iframe>
+  </dialog>
 
   <footer class="site-footer"><div class="shell">LectureLens</div></footer>
 </body>
