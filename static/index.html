@@ -17,6 +17,7 @@
     <div class="shell header-inner">
       <a class="brand" href="/" aria-label="LectureLens home"><span class="brand-mark" aria-hidden="true"></span>LectureLens</a>
       <nav aria-label="Studio navigation">
+        <a href="#lessons">Your lessons</a>
         <a href="#example">Example</a>
       </nav>
       <div style="justify-self:end;display:flex;align-items:center;gap:.5rem;white-space:nowrap">
@@ -52,6 +53,24 @@
         <div class="workflow-feature">
           <span class="workflow-play" aria-hidden="true"></span>
           <div><strong>Visual lesson</strong><span>Made with AdaL Video Producer</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="lessons" class="section" aria-labelledby="lessons-heading">
+      <div class="section-heading">
+        <h2 id="lessons-heading">Your lessons</h2>
+        <button class="text-button" type="button" id="lessons-refresh">Refresh</button>
+      </div>
+      <div class="panel lessons-panel">
+        <div class="lessons-side">
+          <p id="lessons-status" class="status-text" role="status" aria-live="polite">Loading your lessons…</p>
+          <ul id="lessons-list" class="lessons-list" hidden></ul>
+        </div>
+        <div class="lessons-player">
+          <video id="lesson-video" controls playsinline preload="metadata" hidden></video>
+          <p id="lesson-player-status" class="status-text" role="status" aria-live="polite">Choose a lesson to play it here.</p>
+          <a class="source-link" id="lesson-download" href="#" target="_blank" rel="noopener" hidden>Open / download video <span aria-hidden="true">↗</span></a>
         </div>
       </div>
     </section>

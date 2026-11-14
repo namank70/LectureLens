@@ -263,3 +263,17 @@ h3 { font-size: clamp(1.8rem, 3.25vw, 2.9rem); line-height: 1; }
 .upload-dialog-head h2 { margin: 0; font-family: var(--serif); font-size: 1.5rem; font-weight: 400; }
 .upload-dialog-head .button { min-height: 36px; padding: .4rem .8rem; }
 .upload-dialog iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* Your lessons: past videos from the queue server, played in place. */
+.lessons-panel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 1.25rem; padding: clamp(1rem, 2.4vw, 1.5rem); align-items: start; }
+.lessons-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; max-height: 22rem; overflow-y: auto; }
+.lessons-list button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: .1rem .75rem; align-items: center; text-align: left; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; transition: border-color .2s var(--ease), background .2s var(--ease); }
+.lessons-list button:hover { border-color: var(--accent); }
+.lessons-list button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.lessons-list .lesson-when { font-weight: 700; font-size: .92rem; }
+.lessons-list .lesson-id { grid-column: 1; font-size: .76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lessons-list .lesson-state { grid-row: 1 / span 2; grid-column: 2; padding: .1rem .6rem; border-radius: 999px; font-size: .76rem; font-weight: 700; background: var(--accent-soft); color: var(--accent-dark); }
+.lessons-list .lesson-state.ready { background: var(--lime); }
+.lessons-player { display: grid; gap: .6rem; align-content: start; }
+.lessons-player video { width: 100%; aspect-ratio: 16/9; border-radius: 8px; background: #000; }
+@media (max-width: 760px) { .lessons-panel { grid-template-columns: 1fr; } }
