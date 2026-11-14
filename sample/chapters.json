@@ -1,0 +1,65 @@
+[
+  {
+    "page": 1,
+    "title": "Great Pyramid of Giza",
+    "place": "Giza, Egypt",
+    "era": "Third millennium BCE",
+    "narration": "In Giza, Pharaoh Khufu built the Great Pyramid, the only ancient wonder still standing.",
+    "visual": "Concept illustration: pyramid at dusk with a smaller pyramid behind. The pyramid survives; color, surroundings and landscape are interpretive.",
+    "asset_url": "/sample/wonder-1.png"
+  },
+  {
+    "page": 2,
+    "title": "Hanging Gardens",
+    "place": "Mesopotamia, present-day Iraq",
+    "era": "Ancient Mesopotamia",
+    "narration": "Ancient writers described the Hanging Gardens, but scholars still debate where they stood.",
+    "visual": "Concept illustration: stepped terrace garden with trees and a central water channel. DISPUTED: site (Babylon or Nineveh) and appearance are uncertain.",
+    "asset_url": "/sample/wonder-2.png"
+  },
+  {
+    "page": 3,
+    "title": "Statue of Zeus at Olympia",
+    "place": "Olympia, Greece",
+    "era": "Fifth century BCE",
+    "narration": "At Olympia, the sculptor Phidias made a seated statue of Zeus with gold and ivory.",
+    "visual": "Concept illustration: seated Zeus on a throne inside the temple, holding a staff. RECONSTRUCTION: the statue is lost; throne and figure are schematic, based on ancient descriptions.",
+    "asset_url": "/sample/wonder-3.png"
+  },
+  {
+    "page": 4,
+    "title": "Temple of Artemis",
+    "place": "Ephesus, present-day Türkiye",
+    "era": "Sixth to fourth centuries BCE",
+    "narration": "At Ephesus, builders used marble for grand temples dedicated to the goddess Artemis.",
+    "visual": "Concept illustration: marble colonnaded temple on a stepped base. Proportions and ornament are schematic.",
+    "asset_url": "/sample/wonder-4.png"
+  },
+  {
+    "page": 5,
+    "title": "Mausoleum at Halicarnassus",
+    "place": "Bodrum, present-day Türkiye",
+    "era": "Fourth century BCE",
+    "narration": "At Halicarnassus, a towering tomb honored Mausollos, the ruler of Caria.",
+    "visual": "Concept illustration: tomb with a tall base, colonnade and stepped roof. SIMPLIFIED RECONSTRUCTION: exact form and sculpture placement are reconstructed.",
+    "asset_url": "/sample/wonder-5.png"
+  },
+  {
+    "page": 6,
+    "title": "Colossus of Rhodes",
+    "place": "Rhodes, Greece",
+    "era": "Third century BCE",
+    "narration": "On Rhodes, a colossal bronze statue honored Helios, the Greek sun god.",
+    "visual": "Concept illustration: bronze figure standing on land beside the water, not astride the harbor entrance. ILLUSTRATIVE: pose and site are uncertain.",
+    "asset_url": "/sample/wonder-6.png"
+  },
+  {
+    "page": 7,
+    "title": "Lighthouse of Alexandria",
+    "place": "Alexandria, Egypt",
+    "era": "Third century BCE",
+    "narration": "In Alexandria, the Pharos lighthouse helped sailors find their way to the harbor.",
+    "visual": "Concept illustration: tiered lighthouse with a lit beacon on Pharos island, a sailing boat nearby. ILLUSTRATIVE: the upper tower and beacon shape are uncertain.",
+    "asset_url": "/sample/wonder-7.png"
+  }
+]
