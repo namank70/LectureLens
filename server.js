@@ -12,6 +12,7 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync, execFile } = require('node:child_process');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
+const { findAdal, generateLesson } = require('./adal_generation.js');
 
 const ROOT = __dirname;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -32,6 +33,8 @@ const MOTION_CLIPS = { 1: /giza/i, 7: /alexandria/i };
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.m4v', '.webm']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 const BROWSER_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1']);
+const adalCommand = findAdal();
+const importsInProgress = new Set();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -329,6 +332,9 @@ async function getJob(id) {
       job.status = 'error';
       job.message = 'The server restarted during the local preview render. Click Render local preview again.';
     }
+    if (job.generation?.status === 'running') {
+      job.generation = { status: 'error', message: 'The studio restarted while AdaL was working. Check AdaL before trying again.' };
+    }
     jobs.set(id, job);
     return job;
   } catch {
@@ -338,7 +344,11 @@ async function getJob(id) {
 
 function view(job) {
   const { _internal, ...pub } = job;
-  return pub;
+  return {
+    ...pub,
+    generation_available: Boolean(adalCommand && tools.ffprobe.path),
+    generation: pub.generation ?? { status: 'idle' },
+  };
 }
 
 // ---------- uploads ----------
@@ -628,6 +638,7 @@ async function handleDemo(res) {
     pdf_url: pdfAbs ? sampleUrl(pdfAbs) : null,
     script_url: scriptAbs ? sampleUrl(scriptAbs) : null,
     warnings: problems,
+    generation_available: Boolean(adalCommand && tools.ffprobe.path),
   });
 }
 
@@ -696,7 +707,7 @@ async function handleCreateProject(req, res) {
     const warnings = recordingWarnings(info);
     job.message = sample
       ? `Project ready with ${chapters.length} source-linked chapters.`
-      : 'Custom PDF uploaded. The Seven Wonders chapters were not assigned; copy the AdaL prompt to hand the PDF and recording to AdaL.';
+      : 'Your notes and recording are ready for AdaL.';
     if (warnings.length) job.message += ` Check: ${warnings.join('; ')}.`;
     jobs.set(id, job);
     await saveJob(job);
@@ -709,6 +720,7 @@ async function handleCreateProject(req, res) {
 
 async function handleRender(res, id) {
   const job = await getJob(id);
+  if (job.generation?.status === 'running') throw new HttpError(409, 'Wait for AdaL generation to finish.');
   if (job.status === 'rendering') return sendJson(res, 202, view(job));
   if (job.notes !== 'sample') {
     throw new HttpError(409, 'The local preview needs the Seven Wonders sample notes. For a custom PDF, render in AdaL and use Import AdaL MP4.');
@@ -722,6 +734,52 @@ async function handleRender(res, id) {
   sendJson(res, 202, view(job));
 }
 
+async function runGeneration(job) {
+  try {
+    const folder = jobDir(job.job_id);
+    const file = await generateLesson({
+      folder,
+      prompt: job.adal_prompt,
+      command: adalCommand,
+      ffprobe: tools.ffprobe.path,
+      onProgress(message) {
+        job.generation = { status: 'running', message };
+      },
+    });
+    await fsp.rename(file, path.join(folder, 'adal.mp4'));
+    job.adal_url = fileUrl(job.job_id, 'adal.mp4', Date.now());
+    job.render_url = job.adal_url;
+    job.render_mode = 'adal';
+    job.render_label = 'AdaL export';
+    job.status = 'ready';
+    job.message = 'Your AdaL lesson is ready to play and download.';
+    job.generation = { status: 'complete', message: job.message };
+  } catch (error) {
+    job.generation = { status: 'error', message: error.message };
+  }
+  await saveJob(job).catch((error) => console.error('Could not save the AdaL job:', error.message));
+}
+
+async function handleGenerate(res, id) {
+  const job = await getJob(id);
+  if (!adalCommand) throw new HttpError(503, 'Install and sign in to the AdaL command-line app, then restart the studio.');
+  if (!tools.ffprobe.path) throw new HttpError(503, 'Install ffprobe or set FFPROBE before starting automatic generation.');
+  if (job.generation?.status === 'running') return sendJson(res, 202, view(job));
+  if (job.render_mode === 'adal' && job.render_url) return sendJson(res, 200, view(job));
+  if (job.status === 'rendering' || importsInProgress.has(id)) {
+    throw new HttpError(409, 'Wait for the current video operation to finish.');
+  }
+  job.generation = { status: 'running', message: 'Starting AdaL Video Producer.' };
+  try {
+    await saveJob(job);
+  } catch (error) {
+    job.generation = { status: 'error', message: 'The studio could not save this generation request.' };
+    throw error;
+  }
+  void runGeneration(job);
+  return sendJson(res, 202, view(job));
+}
+
 async function handleImport(req, res, id) {
   const job = await getJob(id);
   const form = await readForm(req);
@@ -731,13 +789,25 @@ async function handleImport(req, res, id) {
   if ((ext && !['.mp4', '.m4v', '.mov'].includes(ext)) || !(await looksLikeMp4(output))) {
     throw new HttpError(400, `"${output.name}" is not an MP4. Export the lesson from AdaL as MP4 and import that file.`);
   }
+  if (job.generation?.status === 'running' || importsInProgress.has(id)) {
+    throw new HttpError(409, 'Wait for the current AdaL operation to finish.');
+  }
   const dest = path.join(jobDir(id), 'adal.mp4');
+  importsInProgress.add(id);
+  try {
+    return await saveImportedVideo(res, job, output, dest);
+  } finally {
+    importsInProgress.delete(id);
+  }
+}
+
+async function saveImportedVideo(res, job, output, dest) {
   await writeUpload(output, dest);
   const info = await probe(dest);
   const now = Date.now();
   job._internal.adal_imported_at = now;
   job._internal.adal_name = output.name;
-  job.adal_url = fileUrl(id, 'adal.mp4', now);
+  job.adal_url = fileUrl(job.job_id, 'adal.mp4', now);
   job.render_mode = 'adal';
   job.render_url = job.adal_url;
   job.render_label = 'AdaL export';
@@ -803,6 +873,7 @@ async function route(req, res) {
       frontend: fs.existsSync(path.join(STATIC_DIR, 'index.html')),
       sample: fs.existsSync(path.join(SAMPLE_DIR, 'chapters.json')),
       adal_prompt_brief: fs.existsSync(PROMPT_FILE),
+      generation_available: Boolean(adalCommand && tools.ffprobe.path),
       models: modelFixtures().map((f) => path.basename(f)),
     });
   }
@@ -810,6 +881,7 @@ async function route(req, res) {
   if (m === 'POST' && p === '/api/project') return handleCreateProject(req, res);
   if ((match = /^\/api\/project\/([^/]+)$/.exec(p)) && m === 'GET') return sendJson(res, 200, view(await getJob(match[1])));
   if ((match = /^\/api\/project\/([^/]+)\/render$/.exec(p)) && m === 'POST') return handleRender(res, match[1]);
+  if ((match = /^\/api\/project\/([^/]+)\/generate$/.exec(p)) && m === 'POST') return handleGenerate(res, match[1]);
   if ((match = /^\/api\/project\/([^/]+)\/import$/.exec(p)) && m === 'POST') return handleImport(req, res, match[1]);
   if (p.startsWith('/api/')) throw new HttpError(404, `No route for ${m} ${p}.`);
 

@@ -1,6 +1,6 @@
-# LectureLens: Seven Wonders of the Ancient World
+# LectureLens
 
-LectureLens turns an illustrated source PDF and a 40–50 second camera recording into a short narrated lesson. The studio shows seven source-linked chapters, renders a local preview with the presenter's original audio, and imports the MP4 exported from AdaL. The local preview is a fallback and is always labeled separately from the AdaL export.
+LectureLens turns a source PDF and a camera recording into a narrated lesson. When the AdaL CLI is configured, the studio can start generation and play the finished video. The optional Seven Wonders example also supports a local preview with the presenter's original audio.
 
 ## Branches
 
@@ -32,17 +32,24 @@ FFMPEG=/path/to/ffmpeg FFPROBE=/path/to/ffprobe node server.js
 
 Other overrides: `PORT`, `HOST`, `PYTHON`. `GET /api/health` reports what the server resolved. Uploads, previews and imported exports stay on this computer under `.local/jobs/<job_id>/`.
 
+### Connect AdaL generation
+
+Install the [official AdaL CLI](https://docs.sylph.ai/) on the computer running LectureLens. Run `adal` once and complete browser sign-in if prompted, then restart the studio. Use `ADAL_BIN` to point to a different CLI installation. With the CLI and ffprobe present, **Generate lesson video** prepares the uploads, starts a headless Video Producer job, then displays its verified MP4 in the studio.
+
+The two source files are provided to AdaL when generation starts. If AdaL needs sign-in, credits, or approval for a production step, the studio returns the error and keeps the uploaded files available for retry or the manual AdaL workflow.
+
 ## API
 
 | Route | Behavior |
 | --- | --- |
 | `GET /api/demo` | `chapters`, `pdf_url`, `script_url`, `warnings`. Each chapter: `page` (1–7), `title`, `place`, `era`, `narration`, `visual`, `asset_url`, `source_url` (PDF link with `#page=N`). |
 | `POST /api/project` | Multipart `video` + `pdf`, or `video` + `sample_notes=true` to use the supplied PDF. A different PDF gets no Seven Wonders chapters; it is handed to AdaL through the prompt. |
-| `GET /api/project/{job_id}` | Current job. Poll while `status` is `rendering`. |
+| `GET /api/project/{job_id}` | Current job. Poll while `status` is `rendering` or `generation.status` is `running`. |
+| `POST /api/project/{job_id}/generate` | Starts AdaL Video Producer. On completion, returns an MP4 through the job's `render_url` with `render_mode: "adal"`. |
 | `POST /api/project/{job_id}/render` | Starts the local preview with `video_render.py`. When done: `render_mode: "preview"`. |
 | `POST /api/project/{job_id}/import` | Multipart `output` with the AdaL MP4. Returns `render_mode: "adal"` and a playable `render_url`. |
 
-Job fields: `job_id`, `pdf_url`, `video_url`, `chapters`, `status` (`ready`, `rendering`, `error`), `message`, `adal_prompt`, `render_mode` (`null`, `preview`, `adal`), `render_url`, plus `render_label`, `preview_url` and `adal_url` so the UI can label the local preview separately from the AdaL export. Errors return `{ "error": "...", "message": "..." }` with a 4xx/5xx status. Add `?download=1` to any file URL to download it.
+Jobs include `generation_available` and `generation: { status, message }`, where the status is `idle`, `running`, `complete`, or `error`. The existing local render fields (`status`, `message`, `render_mode`, `render_url`, `render_label`, `preview_url`, and `adal_url`) distinguish a local preview from an AdaL export. Errors return `{ "error": "...", "message": "..." }` with a 4xx/5xx status. Add `?download=1` to a file URL to download it.
 
 ## Sample notes contract (Person B)
 

@@ -161,7 +161,7 @@ h3 { font-size: clamp(1.8rem, 3.25vw, 2.9rem); line-height: 1; }
 .sample-links { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem 1.25rem; font-size: .87rem; color: var(--muted); }
 .sample-links a:hover, .source-link:hover { color: var(--accent); }
 .panel { border: 1px solid var(--line); background: var(--panel); border-radius: 15px; box-shadow: 0 10px 22px -19px #14281a52; }
-.upload-grid, .production-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .upload-grid { padding: 1rem; }
 .upload-card { display: flex; gap: 1rem; border: 1px solid var(--line); padding: 1.18rem; border-radius: 11px; background: var(--surface); transition: background .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
 .upload-card:focus-within { border-color: #a5b5a0; }
@@ -204,9 +204,16 @@ h3 { font-size: clamp(1.8rem, 3.25vw, 2.9rem); line-height: 1; }
 .chapter-list button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
 
 .production-card { min-width: 0; padding: clamp(1rem, 2.5vw, 1.65rem); }
+.production-stack { display: grid; gap: 1rem; }
+.production-card summary { color: var(--accent-dark); font-size: .92rem; font-weight: 700; cursor: pointer; }
 .production-card p { color: var(--muted); font-size: .92rem; }
+.production-card .status-text.error { color: #9a3026; }
+.production-card .upload-actions { margin-top: .9rem; }
 .production-card textarea { display: block; width: 100%; margin: .9rem 0; padding: .7rem; color: var(--text); border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: .85rem; resize: vertical; }
-.render-result video { margin: .85rem 0 .5rem; max-height: 360px; background: #111; }
+.production-progress { display: block; accent-color: var(--accent); width: min(100%, 18rem); height: .7rem; margin: .9rem 0 .6rem; }
+.production-card .video-output-label { width: fit-content; margin: .9rem 0 .3rem; padding: .25rem .55rem; border-radius: 5px; background: var(--accent-soft); color: var(--accent-dark); font-size: .77rem; font-weight: 700; }
+.render-result video { margin: .45rem 0 .5rem; max-height: 480px; aspect-ratio: 16/9; border-radius: 8px; background: #111; }
+.render-result .source-link { margin-top: .35rem; }
 .site-footer { padding: 1.25rem 0; color: var(--muted); border-top: 1px solid var(--line); font-size: .84rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -216,7 +223,7 @@ h3 { font-size: clamp(1.8rem, 3.25vw, 2.9rem); line-height: 1; }
   .workflow { max-width: 34rem; }
   .workflow-scene { min-height: clamp(142px, 25vw, 174px); }
   .scene-card { width: clamp(126px, 26vw, 167px); }
-  .upload-grid, .production-grid, .chapter-view { grid-template-columns: 1fr; }
+  .upload-grid, .chapter-view { grid-template-columns: 1fr; }
   .chapter-view { gap: .8rem; }
   .chapter-art { min-height: 0; }
   .chapter-content { padding-inline: .15rem; }

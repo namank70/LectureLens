@@ -9,6 +9,9 @@ const submitButton = byId("prepare-project");
 const promptBox = byId("adal-prompt");
 const importInput = byId("import-video");
 const renderButton = byId("render-preview");
+const retryButton = byId("retry-generation");
+const generationProgress = byId("generation-progress");
+const manualProduction = byId("manual-production");
 const sourceVideo = byId("source-video");
 const outputVideo = byId("output-video");
 const chapterList = byId("chapter-list");
@@ -26,11 +29,12 @@ let sourcePdf = null;
 let sourceObjectUrl = null;
 let pollTimer = null;
 let uploading = false;
-let changingOutput = false;
+let activeOutput = null;
+let generationAvailable = false;
 
 function showStatus(id, message, isError = false) {
   const status = byId(id);
-  status.textContent = message;
+  if (status.textContent !== message) status.textContent = message;
   status.classList.toggle("error", isError);
 }
 
@@ -39,7 +43,9 @@ async function request(url, options) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const detail = data?.detail ?? data?.message ?? data?.error;
-    throw new Error(typeof detail === "string" ? detail : "The request could not be completed.");
+    const error = new Error(typeof detail === "string" ? detail : "The request could not be completed.");
+    error.status = response.status;
+    throw error;
   }
   if (!data || typeof data !== "object") {
     throw new Error("The server returned an unexpected response.");
@@ -108,10 +114,26 @@ function jobUrl(suffix = "") {
   return `/api/project/${encodeURIComponent(job.job_id)}${suffix}`;
 }
 
+function productionIsRunning() {
+  return job?.status === "rendering" || job?.generation?.status === "running";
+}
+
 function refreshOutputActions() {
-  const busy = changingOutput || job?.status === "rendering";
-  renderButton.disabled = busy || !job?.chapters?.length || job?.render_mode === "adal";
+  const busy = uploading || activeOutput !== null || productionIsRunning();
+  submitButton.disabled = busy || Boolean(job);
+  pdfInput.disabled = busy;
+  videoInput.disabled = busy;
+  sampleButton.disabled = busy || !sample?.pdf_url;
+  renderButton.disabled = busy || renderButton.hidden;
+  retryButton.disabled = busy || retryButton.hidden;
   importInput.disabled = busy || !job;
+  generationProgress.hidden = !activeOutput && !productionIsRunning();
+}
+
+function refreshSubmitLabel() {
+  byId("prepare-label").textContent = uploading
+    ? "Uploading files…"
+    : generationAvailable ? "Generate lesson video" : "Prepare lesson";
 }
 
 function showJob(update) {
@@ -119,28 +141,57 @@ function showJob(update) {
   byId("production").hidden = false;
   promptBox.value = job.adal_prompt || "";
   byId("copy-prompt").disabled = !promptBox.value;
-  byId("playback-detail").textContent = job.chapters?.length
-    ? "Check the lesson with a local preview using the recording and source illustrations."
-    : "Import the MP4 exported from AdaL to review and download your lesson.";
-  renderButton.hidden = !job.chapters?.length;
-  const result = byId("render-result");
+  const canGenerate = job.generation_available ?? generationAvailable;
+  const generationFailed = job.generation?.status === "error";
+  const generationRunning = job.generation?.status === "running";
   const renderUrl = job.render_url;
-  result.hidden = !renderUrl;
+  const hasAdalVideo = Boolean(renderUrl) && job.render_mode === "adal";
+  const showFallback = !hasAdalVideo && !generationRunning && (!canGenerate || generationFailed);
+
+  retryButton.hidden = !canGenerate || generationRunning || hasAdalVideo;
+  retryButton.textContent = generationFailed ? "Retry generation" : "Generate lesson video";
+  renderButton.hidden = !job.chapters?.length || !showFallback;
+  byId("video-actions").hidden = retryButton.hidden && renderButton.hidden;
+  manualProduction.hidden = !showFallback;
+  let nextStep = "";
+  if (!hasAdalVideo && !canGenerate) {
+    nextStep = "Automatic generation is unavailable here. Open the manual AdaL workflow below to make and import your lesson.";
+  } else if (!hasAdalVideo && generationFailed) {
+    nextStep = "Your source files are saved. Try AdaL again or finish the video manually.";
+  }
+  byId("playback-detail").textContent = nextStep;
+  byId("render-result").hidden = !renderUrl;
   if (renderUrl) {
-    if (outputVideo.getAttribute("src") !== renderUrl) outputVideo.src = renderUrl;
+    byId("video-output-label").textContent = hasAdalVideo ? "AdaL video" : "Local preview";
+    if (outputVideo.getAttribute("src") !== renderUrl) {
+      showStatus("output-playback-status", "");
+      outputVideo.src = renderUrl;
+    }
     byId("download-render").href = renderUrl;
-  } else {
+  } else if (outputVideo.hasAttribute("src")) {
     outputVideo.removeAttribute("src");
     outputVideo.load();
   }
   let message = job.message || "";
-  if (renderUrl && !message) {
-    message = job.render_mode === "adal" ? "AdaL export ready to play." : "Local preview ready to play.";
+  let isError = job.status === "error";
+  if (hasAdalVideo) {
+    message = "AdaL lesson ready to play.";
+    isError = false;
+  } else if (generationRunning) {
+    message = job.generation.message || "AdaL is creating your lesson…";
+    isError = false;
+  } else if (job.status !== "rendering" && !isError) {
+    if (renderUrl && job.render_mode === "preview") {
+      message = "Local preview ready to play. It uses the original recording and example illustrations.";
+    } else if (generationFailed) {
+      message = job.generation.message || "AdaL could not generate the lesson.";
+      isError = true;
+    }
   }
-  showStatus("render-status", message, job.status === "error");
+  showStatus("render-status", message, isError);
   refreshOutputActions();
   clearTimeout(pollTimer);
-  if (job.status === "rendering") {
+  if (productionIsRunning()) {
     pollTimer = setTimeout(() => pollJob(job.job_id), 1500);
   }
 }
@@ -151,6 +202,13 @@ async function pollJob(jobId) {
     if (job?.job_id === jobId) showJob(update);
   } catch (error) {
     if (job?.job_id !== jobId) return;
+    if (error.status === 404) {
+      clearProject();
+      refreshOutputActions();
+      showStatus("project-status", "The server lost this project. Your files are still selected. Try again to re-upload them.", true);
+      byId("studio").scrollIntoView({ block: "start" });
+      return;
+    }
     showStatus("render-status", `Could not check progress. Retrying. ${error.message}`, true);
     pollTimer = setTimeout(() => pollJob(jobId), 3000);
   }
@@ -169,6 +227,7 @@ function clearProject() {
   outputVideo.removeAttribute("src");
   outputVideo.load();
   byId("production").hidden = true;
+  manualProduction.open = false;
   showStatus("copy-status", "");
   byId("storyboard").hidden = true;
 }
@@ -176,15 +235,18 @@ function clearProject() {
 function showInputStatus() {
   const hasNotes = usingSample || pdfInput.files.length;
   const hasRecording = videoInput.files.length;
-  let message = "Add both files to prepare your AdaL prompt.";
+  let message = "Add both files to continue.";
   if (hasNotes && hasRecording) {
-    message = "Both files are ready. Prepare your lesson project.";
+    message = generationAvailable
+      ? "Both files are ready for AdaL."
+      : "Both files are ready. Prepare them to use in AdaL.";
   } else if (hasNotes) {
     message = "Choose a presenter recording to continue.";
   } else if (hasRecording) {
     message = "Choose a source PDF to continue.";
   }
   showStatus("project-status", message);
+  refreshOutputActions();
 }
 
 sampleButton.addEventListener("click", () => {
@@ -303,43 +365,43 @@ byId("next-chapter").addEventListener("click", () => selectChapter(chapterIndex 
 
 byId("project-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (uploading) return;
+  if (uploading || job || activeOutput || productionIsRunning()) return;
   const video = videoInput.files[0];
   const pdf = pdfInput.files[0];
   if ((!usingSample && !pdf) || !video) {
     showStatus("project-status", "Select a PDF and a camera recording.", true);
     return;
   }
-  clearProject();
+  const generateAfterUpload = generationAvailable;
   uploading = true;
-  submitButton.disabled = true;
-  pdfInput.disabled = true;
-  videoInput.disabled = true;
-  sampleButton.disabled = true;
-  showStatus("project-status", "Preparing your recording and notes…");
+  refreshOutputActions();
+  refreshSubmitLabel();
+  showStatus("project-status", "Uploading your recording and notes…");
+  let project = null;
   try {
     const form = new FormData();
     form.append("video", video);
     if (usingSample) form.append("sample_notes", "true");
     else form.append("pdf", pdf);
-    const project = await request("/api/project", { method: "POST", body: form });
+    project = await request("/api/project", { method: "POST", body: form });
     if (project.chapters?.length) {
       showStoryboard(project.chapters, project.pdf_url, "PROJECT STORYBOARD", "");
     } else {
       byId("storyboard").hidden = true;
     }
     showJob(project);
-    showStatus("project-status", "Project ready. Open the production options below.");
+    showStatus("project-status", "Source files saved.");
     byId("production-heading").focus({ preventScroll: true });
     byId("production").scrollIntoView({ block: "start" });
   } catch (error) {
     showStatus("project-status", error.message, true);
   } finally {
     uploading = false;
-    submitButton.disabled = false;
-    pdfInput.disabled = false;
-    videoInput.disabled = false;
-    sampleButton.disabled = !sample?.pdf_url;
+    refreshOutputActions();
+    refreshSubmitLabel();
+  }
+  if (project && generateAfterUpload && project.generation_available !== false) {
+    await startGeneration();
   }
 });
 
@@ -355,23 +417,33 @@ byId("copy-prompt").addEventListener("click", async () => {
 });
 
 async function updateOutput(suffix, body, pendingMessage) {
-  if (!job || changingOutput || job.status === "rendering") return;
+  if (!job || activeOutput || productionIsRunning()) return;
   const id = job.job_id;
   const url = jobUrl(suffix);
-  changingOutput = true;
+  activeOutput = suffix;
   refreshOutputActions();
   showStatus("render-status", pendingMessage);
   try {
     const update = await request(url, { method: "POST", body });
     if (job?.job_id === id) showJob(update);
   } catch (error) {
-    if (job?.job_id === id) showStatus("render-status", error.message, true);
+    if (job?.job_id !== id) return;
+    if (suffix === "/generate") {
+      showJob({ ...job, generation: { status: "error", message: error.message } });
+    } else {
+      showStatus("render-status", error.message, true);
+    }
   } finally {
-    changingOutput = false;
+    activeOutput = null;
     refreshOutputActions();
   }
 }
 
+function startGeneration() {
+  return updateOutput("/generate", undefined, "Starting AdaL Video Producer…");
+}
+
+retryButton.addEventListener("click", startGeneration);
 renderButton.addEventListener("click", () => updateOutput("/render", undefined, "Starting the local preview…"));
 importInput.addEventListener("change", () => {
   const file = importInput.files[0];
@@ -381,10 +453,17 @@ importInput.addEventListener("change", () => {
   importInput.value = "";
   updateOutput("/import", form, "Importing your AdaL export…");
 });
+outputVideo.addEventListener("error", () => {
+  if (!outputVideo.hasAttribute("src")) return;
+  showStatus("output-playback-status", "This browser could not play the video. Download the MP4 to open it locally.", true);
+});
 
 async function loadSample() {
   try {
     sample = await request("/api/demo");
+    generationAvailable = sample.generation_available === true;
+    refreshSubmitLabel();
+    if (!uploading && !job) showInputStatus();
     const notesLink = byId("sample-pdf");
     const scriptLink = byId("sample-script");
     if (sample.pdf_url) notesLink.href = sample.pdf_url;
@@ -392,7 +471,7 @@ async function loadSample() {
     notesLink.hidden = !sample.pdf_url;
     scriptLink.hidden = !sample.script_url;
     byId("sample-links").hidden = !sample.pdf_url && !sample.script_url && !sample.chapters?.length;
-    sampleButton.disabled = uploading || !sample.pdf_url;
+    refreshOutputActions();
     sampleStoryboardButton.disabled = !sample.chapters?.length;
   } catch {
     sampleButton.disabled = true;

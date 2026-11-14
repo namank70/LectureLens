@@ -84,8 +84,8 @@
           </div>
         </div>
         <div class="form-footer">
-          <p id="project-status" class="status-text" role="status" aria-live="polite">Add both files to prepare your AdaL prompt.</p>
-          <button class="button primary" type="submit" id="prepare-project">Prepare project <span aria-hidden="true">→</span></button>
+          <p id="project-status" class="status-text" role="status" aria-live="polite">Add both files to continue.</p>
+          <button class="button primary" type="submit" id="prepare-project"><span id="prepare-label">Prepare lesson</span> <span aria-hidden="true">→</span></button>
         </div>
       </form>
       <details class="panel recording-preview" id="recording-preview" hidden>
@@ -99,28 +99,34 @@
       <div class="section-heading">
         <h2 id="production-heading" tabindex="-1">Produce and review</h2>
       </div>
-      <div class="production-grid">
+      <div class="production-stack">
         <article class="panel production-card">
-          <h3>AdaL Video Producer</h3>
-          <p>Open AdaL in this project folder, attach the recording and notes from the paths in the prompt, then paste the prompt. Export the finished lesson as an MP4 and import it here.</p>
+          <h3>Lesson video</h3>
+          <p id="playback-detail"></p>
+          <progress class="production-progress" id="generation-progress" aria-label="Video production in progress" hidden></progress>
+          <p id="render-status" class="status-text" role="status" aria-live="polite"></p>
+          <div class="upload-actions" id="video-actions" hidden>
+            <button type="button" id="retry-generation" class="button primary" hidden>Retry generation</button>
+            <button type="button" id="render-preview" class="button quiet" hidden>Render local preview</button>
+          </div>
+          <div id="render-result" class="render-result" hidden>
+            <p class="video-output-label" id="video-output-label"></p>
+            <video id="output-video" controls playsinline preload="metadata"></video>
+            <p id="output-playback-status" class="status-text" role="status" aria-live="polite"></p>
+            <a class="source-link" id="download-render" href="#" download>Download MP4 <span aria-hidden="true">↓</span></a>
+          </div>
+        </article>
+        <details class="panel production-card" id="manual-production">
+          <summary>Open AdaL and import an export manually</summary>
+          <p>Open AdaL in this project folder. Attach the recording and notes from the paths in the prompt, then paste the prompt. Export the finished lesson as an MP4 and import it here.</p>
           <textarea id="adal-prompt" aria-label="AdaL Video Producer prompt" readonly rows="5"></textarea>
           <div class="upload-actions">
-            <button type="button" id="copy-prompt" class="button primary">Copy AdaL prompt</button>
+            <button type="button" id="copy-prompt" class="button quiet">Copy AdaL prompt</button>
             <input class="visually-hidden file-input" type="file" id="import-video" accept="video/mp4,.mp4">
             <label class="button quiet" for="import-video">Import AdaL MP4</label>
           </div>
           <p id="copy-status" class="status-text" role="status" aria-live="polite"></p>
-        </article>
-        <article class="panel production-card">
-          <h3>Playback</h3>
-          <p id="playback-detail">Check the timing with a local preview using the original recording and available page art.</p>
-          <button type="button" id="render-preview" class="button quiet">Render local preview</button>
-          <p id="render-status" class="status-text" role="status" aria-live="polite"></p>
-          <div id="render-result" class="render-result" hidden>
-            <video id="output-video" controls playsinline preload="metadata"></video>
-            <a class="source-link" id="download-render" href="#" download>Download MP4 <span aria-hidden="true">↓</span></a>
-          </div>
-        </article>
+        </details>
       </div>
     </section>
 
