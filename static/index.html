@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171713">
-  <meta name="description" content="Turn a recorded explanation and sourced notes into a cinematic history lesson.">
-  <title>LectureLens · Seven Wonders Studio</title>
+  <meta name="theme-color" content="#f7f8f3">
+  <meta name="description" content="Turn your recorded explanation and source notes into a visual lesson with LectureLens and AdaL Video Producer.">
+  <title>LectureLens · Lesson Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
       <a class="brand" href="/" aria-label="LectureLens home"><span class="brand-mark" aria-hidden="true"></span>LectureLens</a>
       <nav aria-label="Studio navigation">
         <a href="#studio">Studio</a>
-        <a href="#storyboard">Storyboard</a>
+        <a href="#example">Example</a>
       </nav>
       <a class="repo-link" href="https://github.com/namank70/LectureLens" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
     </div>
@@ -27,53 +27,54 @@
   <main class="shell">
     <section class="hero" aria-labelledby="page-title">
       <div class="hero-copy">
-        <p class="eyebrow">THE ANCIENT WORLD</p>
-        <h1 id="page-title">Seven Wonders.<br><em>Step into history.</em></h1>
-        <p class="intro">Pair your camera recording with a source PDF to storyboard a short lesson that takes your presenter into the Ancient World.</p>
-        <a class="button primary" href="#studio">Start a project <span aria-hidden="true">↓</span></a>
+        <h1 id="page-title">Turn your recording into a <em>visual lesson.</em></h1>
+        <p class="intro">Upload a PDF and a video of your explanation. AdaL uses your notes to guide the visuals and keeps your original narration.</p>
+        <a class="button primary" href="#studio">Create a lesson <span aria-hidden="true">↓</span></a>
       </div>
-      <figure class="hero-frame">
-        <img id="hero-image" src="/sample/wonder-1.png" alt="Illustrated view of the Great Pyramid of Giza">
-        <figcaption><span>01 / 07</span> <span>Giza, Egypt</span></figcaption>
-      </figure>
+      <div class="workflow" aria-label="Lesson workflow">
+        <div class="workflow-inputs">
+          <div class="workflow-item"><span class="document-icon" aria-hidden="true"></span><span>Source notes</span></div>
+          <div class="workflow-item"><span class="camera-icon" aria-hidden="true"></span><span>Camera recording</span></div>
+        </div>
+        <span class="workflow-arrow" aria-hidden="true">↓</span>
+        <div class="workflow-feature">
+          <span class="workflow-play" aria-hidden="true"></span>
+          <div><strong>Visual lesson</strong><span>Made with AdaL Video Producer</span></div>
+        </div>
+      </div>
     </section>
 
     <section id="studio" class="section" aria-labelledby="studio-heading">
       <div class="section-heading">
-        <div><p class="eyebrow">INPUTS</p><h2 id="studio-heading">Set up your lesson</h2></div>
-        <div class="sample-links" id="sample-links" hidden>
-          <a id="sample-pdf" href="#" target="_blank" rel="noopener">Sample notes PDF <span aria-hidden="true">↗</span></a>
-          <a id="sample-script" href="#" target="_blank" rel="noopener">Recording script <span aria-hidden="true">↗</span></a>
-        </div>
+        <h2 id="studio-heading">Set up your lesson</h2>
       </div>
       <form id="project-form" class="panel">
         <div class="upload-grid">
           <div class="upload-card">
-            <div class="upload-icon" aria-hidden="true">▤</div>
+            <div class="upload-icon" aria-hidden="true"><span class="document-icon"></span></div>
             <div class="upload-main">
-              <label for="pdf-input">Study notes</label>
-              <p id="pdf-detail">Choose the illustrated Seven Wonders PDF or upload your own.</p>
+              <label class="upload-label" id="source-notes-label" for="pdf-input">Source notes</label>
+              <p id="pdf-detail">Add a PDF with your topic’s key points, references, or illustrations.</p>
               <div class="upload-actions">
-                <input class="visually-hidden file-input" type="file" id="pdf-input" name="pdf" accept="application/pdf,.pdf">
+                <input class="visually-hidden file-input" type="file" id="pdf-input" name="pdf" accept="application/pdf,.pdf" aria-labelledby="source-notes-label" aria-describedby="pdf-detail">
                 <label for="pdf-input" class="button quiet">Choose PDF</label>
-                <button class="text-button" type="button" id="use-sample" disabled>Use sample notes</button>
               </div>
             </div>
           </div>
           <div class="upload-card">
-            <div class="upload-icon camera" aria-hidden="true">▣</div>
+            <div class="upload-icon" aria-hidden="true"><span class="camera-icon"></span></div>
             <div class="upload-main">
-              <label for="video-input">Camera recording</label>
-              <p id="video-detail">Use a 40–50 second landscape MP4 with clear audio. H.264/AAC works best for browser playback.</p>
+              <label class="upload-label" id="camera-recording-label" for="video-input">Camera recording</label>
+              <p id="video-detail">Add a short landscape recording with clear narration. H.264/AAC MP4 works best for browser playback.</p>
               <div class="upload-actions">
-                <input class="visually-hidden file-input" type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm">
+                <input class="visually-hidden file-input" type="file" id="video-input" name="video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" aria-labelledby="camera-recording-label" aria-describedby="video-detail">
                 <label for="video-input" class="button quiet">Choose video</label>
               </div>
             </div>
           </div>
         </div>
         <div class="form-footer">
-          <p id="project-status" class="status-text" role="status" aria-live="polite">Choose both inputs to prepare your AdaL handoff.</p>
+          <p id="project-status" class="status-text" role="status" aria-live="polite">Add both files to prepare your AdaL prompt.</p>
           <button class="button primary" type="submit" id="prepare-project">Prepare project <span aria-hidden="true">→</span></button>
         </div>
       </form>
@@ -84,39 +85,14 @@
       </details>
     </section>
 
-    <section id="storyboard" class="section" aria-labelledby="storyboard-heading">
-      <div class="section-heading">
-        <div><p class="eyebrow" id="storyboard-label">SAMPLE STORYBOARD</p><h2 id="storyboard-heading">Journey through the wonders</h2></div>
-        <div class="chapter-controls" id="chapter-controls" hidden>
-          <button id="previous-chapter" type="button" aria-label="Previous chapter">←</button>
-          <button id="next-chapter" type="button" aria-label="Next chapter">→</button>
-        </div>
-      </div>
-      <div class="panel storyboard-panel" id="storyboard-panel">
-        <p id="storyboard-status" class="status-text" role="status">Loading the sample storyboard…</p>
-        <div id="chapter-view" class="chapter-view" hidden>
-          <div class="chapter-art"><img id="chapter-image" alt=""></div>
-          <div class="chapter-content" aria-live="polite">
-            <p class="eyebrow" id="chapter-place"></p>
-            <h3 id="chapter-title"></h3>
-            <blockquote id="chapter-narration"></blockquote>
-            <p id="chapter-visual"></p>
-            <a class="source-link" id="chapter-source" href="#" target="_blank" rel="noopener"></a>
-          </div>
-        </div>
-        <div class="chapter-list" id="chapter-list" aria-label="Storyboard chapters" hidden></div>
-      </div>
-    </section>
-
     <section id="production" class="section" aria-labelledby="production-heading" hidden>
       <div class="section-heading">
-        <div><p class="eyebrow">PRODUCTION</p><h2 id="production-heading" tabindex="-1">Bring the lesson to life</h2></div>
+        <h2 id="production-heading" tabindex="-1">Produce and review</h2>
       </div>
       <div class="production-grid">
         <article class="panel production-card">
           <h3>AdaL Video Producer</h3>
-          <p>Open AdaL in this project folder and paste the prompt. Attach the recording and notes PDF from the paths in the prompt. Then export the finished MP4 and import it here.</p>
-          <p class="creative-note">The creative brief calls for a period-guide character, time-travel cuts, and historically labeled reconstructions.</p>
+          <p>Open AdaL in this project folder, attach the recording and notes from the paths in the prompt, then paste the prompt. Export the finished lesson as an MP4 and import it here.</p>
           <textarea id="adal-prompt" aria-label="AdaL Video Producer prompt" readonly rows="5"></textarea>
           <div class="upload-actions">
             <button type="button" id="copy-prompt" class="button primary">Copy AdaL prompt</button>
@@ -137,8 +113,47 @@
         </article>
       </div>
     </section>
+
+    <section id="example" class="section example" aria-labelledby="example-heading">
+      <div class="example-copy">
+        <p class="eyebrow">EXAMPLE LESSON</p>
+        <h2 id="example-heading">Seven Wonders of the Ancient World</h2>
+        <p>Explore an illustrated source PDF, a short recording script, and a storyboard with links to each source page.</p>
+        <div class="sample-links" id="sample-links" hidden>
+          <button class="button quiet" type="button" id="view-sample" disabled>View storyboard</button>
+          <button class="text-button" type="button" id="use-sample" disabled>Use sample notes in project</button>
+          <a id="sample-pdf" href="#" target="_blank" rel="noopener">Sample notes PDF <span aria-hidden="true">↗</span></a>
+          <a id="sample-script" href="#" target="_blank" rel="noopener">Recording script <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <img src="/sample/wonder-1.png" loading="lazy" alt="Concept illustration of the Great Pyramid of Giza">
+    </section>
+
+    <section id="storyboard" class="section" aria-labelledby="storyboard-heading" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow" id="storyboard-label"></p><h2 id="storyboard-heading" tabindex="-1">Lesson storyboard</h2></div>
+        <div class="chapter-controls" id="chapter-controls" hidden>
+          <button id="previous-chapter" type="button" aria-label="Previous chapter">←</button>
+          <button id="next-chapter" type="button" aria-label="Next chapter">→</button>
+        </div>
+      </div>
+      <div class="panel storyboard-panel" id="storyboard-panel">
+        <p id="storyboard-status" class="status-text" role="status"></p>
+        <div id="chapter-view" class="chapter-view" hidden>
+          <div class="chapter-art"><img id="chapter-image" alt=""></div>
+          <div class="chapter-content" aria-live="polite">
+            <p class="eyebrow" id="chapter-place"></p>
+            <h3 id="chapter-title"></h3>
+            <blockquote id="chapter-narration"></blockquote>
+            <p id="chapter-visual"></p>
+            <a class="source-link" id="chapter-source" href="#" target="_blank" rel="noopener"></a>
+          </div>
+        </div>
+        <div class="chapter-list" id="chapter-list" aria-label="Storyboard chapters" hidden></div>
+      </div>
+    </section>
   </main>
 
-  <footer class="site-footer"><div class="shell">LectureLens <span aria-hidden="true">/</span> Seven Wonders of the Ancient World</div></footer>
+  <footer class="site-footer"><div class="shell">LectureLens</div></footer>
 </body>
 </html>

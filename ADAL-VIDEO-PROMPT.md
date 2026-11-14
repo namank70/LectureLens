@@ -1,10 +1,16 @@
-Use AdaL Video Producer to make a 16:9, 720p lesson called “Seven Wonders of the Ancient World.” Use these inputs.
+Use AdaL Video Producer to turn the presenter’s recording and source PDF into a short visual lesson on the topic they teach. Use these inputs.
 
 - Camera recording with the presenter's original narration: {{VIDEO}}
 - Source notes PDF: {{PDF}}
 - Reference illustrations, chapter manifest and optional model assets: {{REFERENCES}}
 
-## First export
+## Lesson brief
+
+Analyze the narration, match the main teaching points to numbered PDF pages, and cut in relevant visuals at the spoken timestamps. Keep the presenter’s original voice. Cite the relevant PDF page in each scene. Choose illustrations and motion appropriate to the topic and audience. Label speculative visuals. Use a stylized version of the presenter only when the presenter has consented and the creative direction calls for it.
+
+## Seven Wonders example
+
+Use the following scene direction only when the source notes are the Seven Wonders of the Ancient World example. For other notes, follow the lesson brief above and build scenes around the supplied topic.
 
 Analyze the camera recording and match the seven spoken beats to pages 1–7 of the PDF. Get cut timings from the narration. Keep the speaker's original words and voice. Start with the original camera shot, then use a consistent, stylized adult time-travel explorer based on a still from the recording with the presenter's permission. Use the same wardrobe and silhouette across shots. Use the original presenter inset if a transformation is unavailable. Skip synthetic dialogue and lip sync.
 
